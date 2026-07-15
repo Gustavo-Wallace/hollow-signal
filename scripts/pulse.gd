@@ -2,7 +2,7 @@ extends Node2D
 
 const LIFETIME := 0.72
 const MAX_RADIUS := 230.0
-const SIGNAL_FORCE := 240.0
+const SIGNAL_FORCE := 105.0
 const SIGNAL_DAMAGE := 1
 
 var age := 0.0
@@ -22,7 +22,9 @@ func _apply_signal_to_reached_targets() -> void:
 	for target in get_tree().get_nodes_in_group("echo_wraith"):
 		if target is Node2D and target not in affected_targets and global_position.distance_to(target.global_position) <= radius:
 			affected_targets.append(target)
-			target.receive_signal_pulse(global_position, SIGNAL_FORCE, SIGNAL_DAMAGE)
+			var distance_ratio := global_position.distance_to(target.global_position) / MAX_RADIUS
+			var force_falloff := lerpf(0.9, 0.32, distance_ratio)
+			target.receive_signal_pulse(global_position, SIGNAL_FORCE * force_falloff, SIGNAL_DAMAGE)
 
 
 func _draw() -> void:

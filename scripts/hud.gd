@@ -27,7 +27,10 @@ func _draw_health(health: int, max_health: int) -> void:
 func _draw_exposure(exposure: float) -> void:
 	var origin := Vector2(984.0, 71.0)
 	var length := 210.0
+	var critical_pulse := 1.0
+	if exposure >= 0.67:
+		critical_pulse = 0.62 + absf(sin(Time.get_ticks_msec() * 0.006)) * 0.38
 	draw_line(origin, origin + Vector2(length, 0.0), Color(0.14, 0.36, 0.46, 0.52), 2.0, true)
-	draw_line(origin, origin + Vector2(length * exposure, 0.0), Color(0.35, 0.92, 1.0, 0.58 + exposure * 0.35), 2.0, true)
+	draw_line(origin, origin + Vector2(length * exposure, 0.0), Color(0.35, 0.92, 1.0, (0.58 + exposure * 0.35) * critical_pulse), 2.0, true)
 	draw_circle(origin, 2.6, Color(0.37, 0.9, 1.0, 0.68))
-	draw_circle(origin + Vector2(length, 0.0), 2.6, Color(0.37, 0.9, 1.0, 0.45))
+	draw_circle(origin + Vector2(length, 0.0), 2.6 + (critical_pulse - 0.62) * 2.5, Color(0.37, 0.9, 1.0, 0.45 * critical_pulse))

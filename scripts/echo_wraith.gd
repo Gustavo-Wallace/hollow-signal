@@ -1,7 +1,7 @@
 extends Node2D
 
-const DORMANT_SPEED := 34.0
-const ALERT_SPEED := 92.0
+const DORMANT_SPEED := 52.0
+const ALERT_SPEED := 132.0
 const REVEAL_DURATION := 2.6
 const ALERT_DURATION := 2.0
 const DEATH_DURATION := 0.52
@@ -47,18 +47,18 @@ func _process_movement(delta: float) -> void:
 	var player_exposure := 0.0
 	if player and player.has_method("get_exposure"):
 		player_exposure = float(player.call("get_exposure"))
-	var has_target := alert_time > 0.0
-	if player and not has_target:
-		var awareness_radius := lerpf(150.0, 520.0, player_exposure)
-		if global_position.distance_to(player.global_position) <= awareness_radius:
+	var has_target := false
+	if player:
+		var awareness_radius := lerpf(140.0, 620.0, player_exposure)
+		if alert_time > 0.0 or global_position.distance_to(player.global_position) <= awareness_radius:
 			target_position = player.global_position
 			has_target = true
 	if has_target:
 		var direction := global_position.direction_to(target_position)
 		var speed := ALERT_SPEED if alert_time > 0.0 else DORMANT_SPEED
-		velocity = velocity.move_toward(direction * speed * (1.0 + player_exposure * 0.7), delta * 64.0)
+		velocity = velocity.move_toward(direction * speed * (1.0 + player_exposure * 1.15), delta * 128.0)
 	else:
-		velocity = velocity.move_toward(Vector2.ZERO, delta * 38.0)
+		velocity = velocity.move_toward(Vector2.ZERO, delta * 52.0)
 	global_position += velocity * delta
 	global_position = global_position.clamp(ARENA_BOUNDS.position, ARENA_BOUNDS.end)
 	if player and global_position.distance_to(player.global_position) <= 27.0:
@@ -73,8 +73,10 @@ func receive_signal_pulse(origin: Vector2, force: float, damage: int) -> void:
 		push_direction = Vector2.RIGHT.rotated(phase)
 	velocity += push_direction * force
 	target_position = origin
-	reveal_time = REVEAL_DURATION
-	alert_time = ALERT_DURATION
+	var player := get_tree().get_first_node_in_group("signal_player")
+	var player_exposure := float(player.call("get_exposure")) if player else 0.0
+	reveal_time = maxf(reveal_time, REVEAL_DURATION + player_exposure * 0.8)
+	alert_time = maxf(alert_time, lerpf(ALERT_DURATION, 4.1, player_exposure))
 	flash_amount = 1.0
 	health -= damage
 	if health <= 0:
@@ -85,6 +87,15 @@ func receive_signal_pulse(origin: Vector2, force: float, damage: int) -> void:
 func begin_emergence() -> void:
 	emergence = 0.0
 	reveal_amount = 0.02
+	queue_redraw()
+
+
+func wake_for_exposure(exposure_level: float) -> void:
+	if exposure_level < 0.34:
+		return
+	reveal_time = lerpf(0.7, 2.0, exposure_level)
+	alert_time = lerpf(0.9, 3.2, exposure_level)
+	flash_amount = 0.45
 	queue_redraw()
 
 

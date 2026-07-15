@@ -3,11 +3,11 @@ extends Node2D
 const MAX_SPEED := 330.0
 const ACCELERATION := 1250.0
 const DECELERATION := 1650.0
-const PULSE_COOLDOWN := 0.65
+const PULSE_COOLDOWN := 0.82
 const MAX_HEALTH := 3
 const INVULNERABILITY_DURATION := 1.0
-const EXPOSURE_PER_PULSE := 0.28
-const EXPOSURE_DECAY := 0.09
+const EXPOSURE_PER_PULSE := 0.31
+const EXPOSURE_DECAY := 0.05
 const ARENA_BOUNDS := Rect2(62.0, 62.0, 1156.0, 556.0)
 
 var velocity := Vector2.ZERO
@@ -19,6 +19,7 @@ var exposure := 0.0
 var damage_flash := 0.0
 var destroyed := false
 @onready var trail: Line2D = $Trail
+@onready var signal_hint: Label = $"../Interface/SignalHint"
 
 
 func _ready() -> void:
@@ -33,6 +34,7 @@ func _process(delta: float) -> void:
 	_move(delta)
 	_update_trail()
 	pulse_cooldown = maxf(0.0, pulse_cooldown - delta)
+	signal_hint.modulate.a = 0.28 + (1.0 - pulse_cooldown / PULSE_COOLDOWN) * 0.72
 	invulnerability_time = maxf(0.0, invulnerability_time - delta)
 	exposure = maxf(0.0, exposure - EXPOSURE_DECAY * delta)
 	damage_flash = maxf(0.0, damage_flash - delta * 3.5)

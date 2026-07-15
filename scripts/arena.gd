@@ -16,7 +16,7 @@ var camera_shake_strength := 0.0
 var exposure := 0.0
 var run_state := RunState.PLAYING
 var echoes_collected := 0
-var spawn_timer := 3.8
+var spawn_timer := 3.2
 var elapsed_time := 0.0
 @onready var arena_camera: Camera2D = $ArenaCamera
 
@@ -108,7 +108,10 @@ func _update_threat_spawner(delta: float) -> void:
 		return
 	_spawn_wraith_at_edge()
 	var run_pressure := minf(elapsed_time / 90.0, 1.0)
-	spawn_timer = lerpf(5.3, 2.4, exposure * 0.7 + run_pressure * 0.3)
+	match get_exposure_band():
+		0: spawn_timer = 5.4 - run_pressure * 0.6
+		1: spawn_timer = 3.35 - run_pressure * 0.45
+		_: spawn_timer = 1.65 - run_pressure * 0.25
 
 
 func _spawn_wraith_at_edge() -> void:
@@ -128,6 +131,16 @@ func _spawn_wraith_at_edge() -> void:
 	wraith.position = spawn_position
 	add_child(wraith)
 	wraith.call("begin_emergence")
+	if exposure >= 0.34:
+		wraith.call("wake_for_exposure", exposure)
+
+
+func get_exposure_band() -> int:
+	if exposure >= 0.67:
+		return 2
+	if exposure >= 0.34:
+		return 1
+	return 0
 
 
 func _update_final_echo_pulse() -> void:
@@ -193,6 +206,10 @@ func _draw_machine_rings() -> void:
 	var rotating_angle := drift * 0.16
 	draw_arc(center, 292.0, rotating_angle, rotating_angle + 1.05, 48, Color(0.25, 0.92, 1.0, 0.32 + exposure * 0.16), 2.0, true)
 	draw_arc(center, 292.0, rotating_angle + PI, rotating_angle + PI + 0.56, 32, Color(0.37, 0.42, 1.0, 0.22), 1.0, true)
+	if get_exposure_band() == 2:
+		var critical_pulse := 0.34 + sin(drift * 4.0) * 0.16
+		draw_arc(center, 406.0, -rotating_angle * 1.8, -rotating_angle * 1.8 + 0.88, 42, Color(0.42, 0.9, 1.0, critical_pulse), 1.6, true)
+		draw_arc(center, 214.0, rotating_angle * 2.3, rotating_angle * 2.3 + 0.52, 32, Color(0.42, 0.9, 1.0, critical_pulse * 0.7), 1.0, true)
 
 
 func _draw_stars() -> void:
