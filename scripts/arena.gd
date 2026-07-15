@@ -5,6 +5,9 @@ const PULSE_SCRIPT := preload("res://scripts/pulse.gd")
 
 var stars: Array[Dictionary] = []
 var drift := 0.0
+var camera_shake_time := 0.0
+var camera_shake_strength := 0.0
+@onready var arena_camera: Camera2D = $ArenaCamera
 
 
 func _ready() -> void:
@@ -14,6 +17,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	drift += delta
+	_update_camera_shake(delta)
 	queue_redraw()
 
 
@@ -22,6 +26,17 @@ func emit_pulse(origin: Vector2) -> void:
 	pulse.set_script(PULSE_SCRIPT)
 	pulse.position = origin
 	add_child(pulse)
+	camera_shake_time = 0.15
+	camera_shake_strength = 7.0
+
+
+func _update_camera_shake(delta: float) -> void:
+	if camera_shake_time <= 0.0:
+		arena_camera.offset = Vector2.ZERO
+		return
+	camera_shake_time = maxf(0.0, camera_shake_time - delta)
+	var intensity := camera_shake_strength * (camera_shake_time / 0.15)
+	arena_camera.offset = Vector2(randf_range(-intensity, intensity), randf_range(-intensity, intensity))
 
 
 func _generate_stars() -> void:
