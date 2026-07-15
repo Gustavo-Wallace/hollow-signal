@@ -1,8 +1,9 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/arena.gd" id="1_arena"]
 [ext_resource type="Script" path="res://scripts/player.gd" id="2_player"]
 [ext_resource type="Script" path="res://scripts/echo_wraith.gd" id="3_wraith"]
+[ext_resource type="Script" path="res://scripts/hud.gd" id="4_hud"]
 
 [node name="HollowSignal" type="Node2D"]
 script = ExtResource("1_arena")
@@ -44,6 +45,9 @@ antialiased = true
 
 [node name="Interface" type="CanvasLayer" parent="."]
 
+[node name="Hud" type="Node2D" parent="Interface"]
+script = ExtResource("4_hud")
+
 [node name="SignalHint" type="Label" parent="Interface"]
 offset_left = 48.0
 offset_top = 662.0
@@ -55,3 +59,34 @@ theme_override_constants/shadow_offset_x = 1
 theme_override_constants/shadow_offset_y = 2
 theme_override_font_sizes/font_size = 15
 text = "SPACE — emit signal"
+
+[node name="GameOver" type="Control" parent="Interface"]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+offset_right = 1280.0
+offset_bottom = 720.0
+mouse_filter = 2
+
+[node name="Title" type="Label" parent="Interface/GameOver"]
+layout_mode = 0
+offset_top = 290.0
+offset_right = 1280.0
+offset_bottom = 336.0
+theme_override_colors/font_color = Color(0.63, 0.93, 1, 0.95)
+theme_override_colors/font_shadow_color = Color(0.02, 0.06, 0.11, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 3
+theme_override_font_sizes/font_size = 30
+text = "SIGNAL LOST"
+horizontal_alignment = 1
+
+[node name="RestartHint" type="Label" parent="Interface/GameOver"]
+layout_mode = 0
+offset_top = 343.0
+offset_right = 1280.0
+offset_bottom = 374.0
+theme_override_colors/font_color = Color(0.4, 0.75, 0.88, 0.72)
+theme_override_font_sizes/font_size = 16
+text = "Press R to restart"
+horizontal_alignment = 1

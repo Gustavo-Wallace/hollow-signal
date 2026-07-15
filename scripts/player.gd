@@ -4,11 +4,20 @@ const MAX_SPEED := 330.0
 const ACCELERATION := 1250.0
 const DECELERATION := 1650.0
 const PULSE_COOLDOWN := 0.65
+const MAX_HEALTH := 3
+const INVULNERABILITY_DURATION := 1.0
+const EXPOSURE_PER_PULSE := 0.28
+const EXPOSURE_DECAY := 0.09
 const ARENA_BOUNDS := Rect2(62.0, 62.0, 1156.0, 556.0)
 
 var velocity := Vector2.ZERO
 var trail_points: PackedVector2Array = []
 var pulse_cooldown := 0.0
+var health := MAX_HEALTH
+var invulnerability_time := 0.0
+var exposure := 0.0
+var damage_flash := 0.0
+var destroyed := false
 @onready var trail: Line2D = $Trail
 
 
@@ -19,12 +28,18 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if destroyed:
+		return
 	_move(delta)
 	_update_trail()
 	pulse_cooldown = maxf(0.0, pulse_cooldown - delta)
+	invulnerability_time = maxf(0.0, invulnerability_time - delta)
+	exposure = maxf(0.0, exposure - EXPOSURE_DECAY * delta)
+	damage_flash = maxf(0.0, damage_flash - delta * 3.5)
 	if Input.is_action_just_pressed("ui_accept") and pulse_cooldown <= 0.0:
 		get_parent().emit_pulse(global_position)
 		pulse_cooldown = PULSE_COOLDOWN
+		exposure = minf(1.0, exposure + EXPOSURE_PER_PULSE)
 	queue_redraw()
 
 
@@ -44,17 +59,48 @@ func _update_trail() -> void:
 	while trail_points.size() > 22:
 		trail_points.remove_at(trail_points.size() - 1)
 	trail.points = trail_points
-	trail.default_color.a = 0.14 + minf(velocity.length() / MAX_SPEED, 1.0) * 0.28
+	trail.default_color.a = 0.14 + minf(velocity.length() / MAX_SPEED, 1.0) * 0.28 + exposure * 0.18
+
+
+func take_damage(source_position: Vector2) -> void:
+	if invulnerability_time > 0.0 or destroyed:
+		return
+	health -= 1
+	invulnerability_time = INVULNERABILITY_DURATION
+	damage_flash = 1.0
+	velocity += source_position.direction_to(global_position) * 260.0
+	get_parent().player_damaged()
+	if health <= 0:
+		destroyed = true
+		get_parent().player_destroyed()
+	queue_redraw()
+
+
+func get_exposure() -> float:
+	return exposure
+
+
+func get_health() -> int:
+	return health
+
+
+func get_max_health() -> int:
+	return MAX_HEALTH
 
 
 func _draw() -> void:
 	var pulse := sin(Time.get_ticks_msec() * 0.003) * 0.5 + 0.5
 	var cooldown_progress := 1.0 - pulse_cooldown / PULSE_COOLDOWN
-	draw_circle(Vector2.ZERO, 28.0 + pulse * 3.0, Color(0.05, 0.5, 0.82, 0.055))
-	draw_circle(Vector2.ZERO, 19.0 + pulse * 2.0, Color(0.1, 0.72, 1.0, 0.12))
-	draw_arc(Vector2.ZERO, 15.0, 0.0, TAU, 48, Color(0.3, 0.9, 1.0, 0.72), 1.2, true)
-	draw_arc(Vector2.ZERO, 22.0, -PI * 0.5, -PI * 0.5 + TAU * cooldown_progress, 32, Color(0.35, 0.93, 1.0, 0.52), 1.3, true)
-	draw_circle(Vector2.ZERO, 10.0, Color(0.22, 0.83, 1.0, 0.92))
-	draw_circle(Vector2.ZERO, 5.0, Color(0.8, 0.98, 1.0, 1.0))
-	draw_line(Vector2(-17, 0), Vector2(17, 0), Color(0.35, 0.9, 1.0, 0.3), 1.0)
-	draw_line(Vector2(0, -17), Vector2(0, 17), Color(0.35, 0.9, 1.0, 0.3), 1.0)
+	var blink_alpha := 1.0 if invulnerability_time <= 0.0 else 0.38 + 0.62 * absf(sin(Time.get_ticks_msec() * 0.018))
+	var aura_radius := 28.0 + pulse * 3.0 + exposure * 18.0
+	draw_circle(Vector2.ZERO, aura_radius, Color(0.05, 0.5, 0.82, (0.055 + exposure * 0.14) * blink_alpha))
+	draw_circle(Vector2.ZERO, 19.0 + pulse * 2.0 + exposure * 7.0, Color(0.1, 0.72, 1.0, (0.12 + exposure * 0.16) * blink_alpha))
+	draw_arc(Vector2.ZERO, 15.0, 0.0, TAU, 48, Color(0.3, 0.9, 1.0, (0.72 + exposure * 0.2) * blink_alpha), 1.2, true)
+	draw_arc(Vector2.ZERO, 22.0, -PI * 0.5, -PI * 0.5 + TAU * cooldown_progress, 32, Color(0.35, 0.93, 1.0, 0.52 * blink_alpha), 1.3, true)
+	if exposure > 0.05:
+		draw_arc(Vector2.ZERO, 34.0 + pulse * 5.0 + exposure * 12.0, 0.45, 2.35, 24, Color(0.3, 0.92, 1.0, exposure * 0.38 * blink_alpha), 1.0, true)
+		draw_arc(Vector2.ZERO, 34.0 + pulse * 5.0 + exposure * 12.0, 3.6, 5.5, 24, Color(0.3, 0.92, 1.0, exposure * 0.38 * blink_alpha), 1.0, true)
+	draw_circle(Vector2.ZERO, 10.0 + exposure * 1.5, Color(0.22, 0.83, 1.0, 0.92 * blink_alpha))
+	draw_circle(Vector2.ZERO, 5.0 + damage_flash * 1.6, Color(0.8, 0.98, 1.0, blink_alpha))
+	draw_line(Vector2(-17, 0), Vector2(17, 0), Color(0.35, 0.9, 1.0, 0.3 * blink_alpha), 1.0)
+	draw_line(Vector2(0, -17), Vector2(0, 17), Color(0.35, 0.9, 1.0, 0.3 * blink_alpha), 1.0)

@@ -41,15 +41,26 @@ func _process(delta: float) -> void:
 
 
 func _process_movement(delta: float) -> void:
-	if alert_time <= 0.0:
-		var player := get_tree().get_first_node_in_group("signal_player") as Node2D
-		if player:
+	var player := get_tree().get_first_node_in_group("signal_player") as Node2D
+	var player_exposure := 0.0
+	if player and player.has_method("get_exposure"):
+		player_exposure = float(player.call("get_exposure"))
+	var has_target := alert_time > 0.0
+	if player and not has_target:
+		var awareness_radius := lerpf(150.0, 520.0, player_exposure)
+		if global_position.distance_to(player.global_position) <= awareness_radius:
 			target_position = player.global_position
-	var direction := global_position.direction_to(target_position)
-	var speed := ALERT_SPEED if alert_time > 0.0 else DORMANT_SPEED
-	velocity = velocity.move_toward(direction * speed, delta * 64.0)
+			has_target = true
+	if has_target:
+		var direction := global_position.direction_to(target_position)
+		var speed := ALERT_SPEED if alert_time > 0.0 else DORMANT_SPEED
+		velocity = velocity.move_toward(direction * speed * (1.0 + player_exposure * 0.7), delta * 64.0)
+	else:
+		velocity = velocity.move_toward(Vector2.ZERO, delta * 38.0)
 	global_position += velocity * delta
 	global_position = global_position.clamp(ARENA_BOUNDS.position, ARENA_BOUNDS.end)
+	if player and global_position.distance_to(player.global_position) <= 27.0:
+		player.call("take_damage", global_position)
 
 
 func receive_signal_pulse(origin: Vector2, force: float, damage: int) -> void:
