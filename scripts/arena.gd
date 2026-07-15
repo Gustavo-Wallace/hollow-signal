@@ -53,6 +53,18 @@ func player_damaged() -> void:
 	camera_shake_strength = 13.0
 
 
+func is_playing() -> bool:
+	return run_state == RunState.PLAYING
+
+
+func get_progress_ratio() -> float:
+	return float(echoes_collected) / float(ECHO_TARGET)
+
+
+func is_machine_panic() -> bool:
+	return is_playing() and ECHO_TARGET - echoes_collected <= 2
+
+
 func player_destroyed() -> void:
 	if run_state != RunState.PLAYING:
 		return
@@ -108,10 +120,15 @@ func _update_threat_spawner(delta: float) -> void:
 		return
 	_spawn_wraith_at_edge()
 	var run_pressure := minf(elapsed_time / 90.0, 1.0)
+	var interval := 0.0
 	match get_exposure_band():
-		0: spawn_timer = 5.4 - run_pressure * 0.6
-		1: spawn_timer = 3.35 - run_pressure * 0.45
-		_: spawn_timer = 1.65 - run_pressure * 0.25
+		0: interval = 5.4 - run_pressure * 0.6
+		1: interval = 3.35 - run_pressure * 0.45
+		_: interval = 1.65 - run_pressure * 0.25
+	interval -= get_progress_ratio() * 1.05
+	if is_machine_panic():
+		interval -= 0.55
+	spawn_timer = maxf(0.95, interval)
 
 
 func _spawn_wraith_at_edge() -> void:
@@ -131,8 +148,8 @@ func _spawn_wraith_at_edge() -> void:
 	wraith.position = spawn_position
 	add_child(wraith)
 	wraith.call("begin_emergence")
-	if exposure >= 0.34:
-		wraith.call("wake_for_exposure", exposure)
+	if exposure >= 0.34 or is_machine_panic():
+		wraith.call("wake_for_exposure", maxf(exposure, 0.5))
 
 
 func get_exposure_band() -> int:
@@ -145,7 +162,7 @@ func get_exposure_band() -> int:
 
 func _update_final_echo_pulse() -> void:
 	var remaining := ECHO_TARGET - echoes_collected
-	if run_state == RunState.PLAYING and remaining <= 2:
+	if is_machine_panic():
 		var pulse := 0.7 + sin(drift * 3.0) * 0.25
 		$Interface/EchoCounter.modulate.a = pulse
 	else:
@@ -188,7 +205,8 @@ func _draw() -> void:
 
 
 func _draw_grid() -> void:
-	var grid_color := Color(0.12, 0.4, 0.53, 0.075 + exposure * 0.075)
+	var panic_boost := 0.045 if is_machine_panic() else 0.0
+	var grid_color := Color(0.12, 0.4, 0.53, 0.075 + exposure * 0.075 + panic_boost)
 	for x in range(0, 1281, 64):
 		draw_line(Vector2(x, 0), Vector2(x, 720), grid_color, 1.0)
 	for y in range(0, 721, 64):
@@ -210,6 +228,8 @@ func _draw_machine_rings() -> void:
 		var critical_pulse := 0.34 + sin(drift * 4.0) * 0.16
 		draw_arc(center, 406.0, -rotating_angle * 1.8, -rotating_angle * 1.8 + 0.88, 42, Color(0.42, 0.9, 1.0, critical_pulse), 1.6, true)
 		draw_arc(center, 214.0, rotating_angle * 2.3, rotating_angle * 2.3 + 0.52, 32, Color(0.42, 0.9, 1.0, critical_pulse * 0.7), 1.0, true)
+	if is_machine_panic():
+		draw_arc(center, 356.0, rotating_angle * 1.4 + PI, rotating_angle * 1.4 + PI + 0.72, 40, Color(0.38, 0.88, 1.0, 0.28 + sin(drift * 3.0) * 0.1), 1.4, true)
 
 
 func _draw_stars() -> void:

@@ -9,6 +9,7 @@ var collection_time := 0.0
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_PAUSABLE
 	phase = fmod(global_position.x * 0.031 + global_position.y * 0.017, TAU)
 	add_to_group("echo_shard")
 	queue_redraw()

@@ -5,6 +5,7 @@ const ALERT_SPEED := 132.0
 const REVEAL_DURATION := 2.6
 const ALERT_DURATION := 2.0
 const DEATH_DURATION := 0.52
+const STAGGER_DURATION := 0.4
 const ARENA_BOUNDS := Rect2(64.0, 64.0, 1152.0, 552.0)
 
 var health := 3
@@ -18,9 +19,12 @@ var phase := 0.0
 var dying := false
 var death_time := 0.0
 var emergence := 1.0
+var stagger_time := 0.0
+var stagger_flash := 0.0
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_to_group("echo_wraith")
 	target_position = global_position
 	phase = fmod(global_position.x * 0.021 + global_position.y * 0.013, TAU)
@@ -28,6 +32,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if not get_parent().is_playing():
+		return
 	if dying:
 		_process_death(delta)
 		return
@@ -35,6 +41,8 @@ func _process(delta: float) -> void:
 	reveal_time = maxf(0.0, reveal_time - delta)
 	alert_time = maxf(0.0, alert_time - delta)
 	flash_amount = maxf(0.0, flash_amount - delta * 3.8)
+	stagger_time = maxf(0.0, stagger_time - delta)
+	stagger_flash = maxf(0.0, stagger_flash - delta * 2.7)
 	emergence = move_toward(emergence, 1.0, delta * 2.2)
 	var target_reveal := 1.0 if reveal_time > 0.0 else 0.08
 	reveal_amount = move_toward(reveal_amount, target_reveal, delta * 1.45)
@@ -47,18 +55,22 @@ func _process_movement(delta: float) -> void:
 	var player_exposure := 0.0
 	if player and player.has_method("get_exposure"):
 		player_exposure = float(player.call("get_exposure"))
-	var has_target := false
-	if player:
-		var awareness_radius := lerpf(140.0, 620.0, player_exposure)
-		if alert_time > 0.0 or global_position.distance_to(player.global_position) <= awareness_radius:
-			target_position = player.global_position
-			has_target = true
-	if has_target:
-		var direction := global_position.direction_to(target_position)
-		var speed := ALERT_SPEED if alert_time > 0.0 else DORMANT_SPEED
-		velocity = velocity.move_toward(direction * speed * (1.0 + player_exposure * 1.15), delta * 128.0)
+	var progress_pressure: float = float(get_parent().get_progress_ratio())
+	if stagger_time > 0.0:
+		velocity = velocity.move_toward(Vector2.ZERO, delta * 520.0)
 	else:
-		velocity = velocity.move_toward(Vector2.ZERO, delta * 52.0)
+		var has_target := false
+		if player:
+			var awareness_radius: float = lerpf(140.0, 620.0, player_exposure) + progress_pressure * 85.0
+			if alert_time > 0.0 or global_position.distance_to(player.global_position) <= awareness_radius:
+				target_position = player.global_position
+				has_target = true
+		if has_target:
+			var direction := global_position.direction_to(target_position)
+			var speed := ALERT_SPEED if alert_time > 0.0 else DORMANT_SPEED
+			velocity = velocity.move_toward(direction * speed * (1.0 + player_exposure * 1.15 + progress_pressure * 0.3), delta * 128.0)
+		else:
+			velocity = velocity.move_toward(Vector2.ZERO, delta * 52.0)
 	global_position += velocity * delta
 	global_position = global_position.clamp(ARENA_BOUNDS.position, ARENA_BOUNDS.end)
 	if player and global_position.distance_to(player.global_position) <= 27.0:
@@ -71,13 +83,17 @@ func receive_signal_pulse(origin: Vector2, force: float, damage: int) -> void:
 	var push_direction := origin.direction_to(global_position)
 	if push_direction == Vector2.ZERO:
 		push_direction = Vector2.RIGHT.rotated(phase)
-	velocity += push_direction * force
 	target_position = origin
 	var player := get_tree().get_first_node_in_group("signal_player")
 	var player_exposure := float(player.call("get_exposure")) if player else 0.0
+	var progress_pressure: float = float(get_parent().get_progress_ratio())
+	var panic_bonus := 0.75 if get_parent().is_machine_panic() else 0.0
 	reveal_time = maxf(reveal_time, REVEAL_DURATION + player_exposure * 0.8)
-	alert_time = maxf(alert_time, lerpf(ALERT_DURATION, 4.1, player_exposure))
+	alert_time = maxf(alert_time, lerpf(ALERT_DURATION, 4.1, player_exposure) + progress_pressure * 0.65 + panic_bonus)
 	flash_amount = 1.0
+	stagger_time = STAGGER_DURATION
+	stagger_flash = 1.0
+	velocity = velocity * 0.28 + push_direction * force
 	health -= damage
 	if health <= 0:
 		_begin_death()
@@ -132,6 +148,11 @@ func _draw() -> void:
 	draw_arc(Vector2.ZERO, 24.0 + pulse * 2.0, 0.18, 2.25, 24, Color(0.3, 0.9, 1.0, glow_alpha), 1.3, true)
 	draw_arc(Vector2.ZERO, 24.0 + pulse * 2.0, 3.35, 5.48, 24, Color(0.3, 0.9, 1.0, glow_alpha), 1.3, true)
 	draw_circle(Vector2.ZERO, 3.4 + flash_amount * 1.8, Color(0.62, 0.96, 1.0, alpha * (0.52 + flash_amount * 0.48)))
+	if stagger_time > 0.0:
+		var stagger_progress := 1.0 - stagger_time / STAGGER_DURATION
+		var stagger_alpha := stagger_flash * alpha
+		draw_arc(Vector2.ZERO, 25.0 + stagger_progress * 18.0, 0.0, TAU, 36, Color(0.58, 0.96, 1.0, stagger_alpha), 1.6, true)
+		draw_line(Vector2(-21.0, 0), Vector2(21.0, 0), Color(0.55, 0.94, 1.0, stagger_alpha * 0.62), 1.0, true)
 	if emergence < 1.0:
 		draw_line(Vector2(0, -42.0 * (1.0 - emergence)), Vector2.ZERO, Color(0.25, 0.85, 1.0, (1.0 - emergence) * 0.55), 1.0, true)
 	if reveal_amount > 0.2:

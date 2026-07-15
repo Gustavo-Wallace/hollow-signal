@@ -23,20 +23,22 @@ var destroyed := false
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_to_group("signal_player")
 	trail_points.append(global_position)
 	queue_redraw()
 
 
 func _process(delta: float) -> void:
-	if destroyed:
+	if destroyed or not get_parent().is_playing():
 		return
 	_move(delta)
 	_update_trail()
 	pulse_cooldown = maxf(0.0, pulse_cooldown - delta)
 	signal_hint.modulate.a = 0.28 + (1.0 - pulse_cooldown / PULSE_COOLDOWN) * 0.72
 	invulnerability_time = maxf(0.0, invulnerability_time - delta)
-	exposure = maxf(0.0, exposure - EXPOSURE_DECAY * delta)
+	var progress_decay := lerpf(1.0, 0.62, get_parent().get_progress_ratio())
+	exposure = maxf(0.0, exposure - EXPOSURE_DECAY * progress_decay * delta)
 	damage_flash = maxf(0.0, damage_flash - delta * 3.5)
 	if Input.is_action_just_pressed("ui_accept") and pulse_cooldown <= 0.0:
 		get_parent().emit_pulse(global_position)
@@ -65,7 +67,7 @@ func _update_trail() -> void:
 
 
 func take_damage(source_position: Vector2) -> void:
-	if invulnerability_time > 0.0 or destroyed:
+	if invulnerability_time > 0.0 or destroyed or not get_parent().is_playing():
 		return
 	health -= 1
 	invulnerability_time = INVULNERABILITY_DURATION
