@@ -10,14 +10,38 @@ config_version=5
 
 [application]
 
-config/name="hollow-signal"
+config/name="Hollow Signal"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
+run/main_scene="res://scenes/main.tscn"
 
 [display]
 
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/window_width_override=1280
+window/size/window_height_override=720
 window/stretch/mode="canvas_items"
-window/stretch/aspect="expand"
+window/stretch/aspect="keep"
+
+[input]
+
+move_up={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":87), Object(InputEventKey,"physical_keycode":4194320)]
+}
+move_down={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":83), Object(InputEventKey,"physical_keycode":4194322)]
+}
+move_left={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":65), Object(InputEventKey,"physical_keycode":4194319)]
+}
+move_right={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":68), Object(InputEventKey,"physical_keycode":4194321)]
+}
 
 [physics]
 

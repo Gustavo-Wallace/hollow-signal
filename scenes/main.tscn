@@ -1,0 +1,36 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/arena.gd" id="1_arena"]
+[ext_resource type="Script" path="res://scripts/player.gd" id="2_player"]
+
+[node name="HollowSignal" type="Node2D"]
+script = ExtResource("1_arena")
+
+[node name="ArenaCamera" type="Camera2D" parent="."]
+position = Vector2(640, 360)
+
+[node name="Player" type="Node2D" parent="."]
+position = Vector2(640, 360)
+script = ExtResource("2_player")
+
+[node name="Trail" type="Line2D" parent="Player"]
+top_level = true
+width = 3.0
+default_color = Color(0.2, 0.86, 1, 0.32)
+begin_cap_mode = 2
+end_cap_mode = 2
+antialiased = true
+
+[node name="Interface" type="CanvasLayer" parent="."]
+
+[node name="SignalHint" type="Label" parent="Interface"]
+offset_left = 48.0
+offset_top = 662.0
+offset_right = 330.0
+offset_bottom = 692.0
+theme_override_colors/font_color = Color(0.44, 0.78, 0.9, 0.65)
+theme_override_colors/font_shadow_color = Color(0.02, 0.08, 0.14, 0.9)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 15
+text = "SPACE — emit signal"
