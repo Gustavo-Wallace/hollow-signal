@@ -2,26 +2,40 @@ extends Node2D
 
 const VIEWPORT_SIZE := Vector2(1280.0, 720.0)
 const PULSE_SCRIPT := preload("res://scripts/pulse.gd")
+const WRAITH_SCRIPT := preload("res://scripts/echo_wraith.gd")
+const SHARD_SCRIPT := preload("res://scripts/echo_shard.gd")
+const ECHO_TARGET := 8
+const MAX_WRAITHS := 8
+
+enum RunState { PLAYING, LOST, STABILIZED }
 
 var stars: Array[Dictionary] = []
 var drift := 0.0
 var camera_shake_time := 0.0
 var camera_shake_strength := 0.0
 var exposure := 0.0
-var game_over := false
+var run_state := RunState.PLAYING
+var echoes_collected := 0
+var spawn_timer := 3.8
+var elapsed_time := 0.0
 @onready var arena_camera: Camera2D = $ArenaCamera
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_generate_stars()
+	_update_echo_counter()
 	queue_redraw()
 
 
 func _process(delta: float) -> void:
 	drift += delta
 	_update_exposure()
+	if run_state == RunState.PLAYING:
+		elapsed_time += delta
+		_update_threat_spawner(delta)
 	_update_camera_shake(delta)
+	_update_final_echo_pulse()
 	queue_redraw()
 
 
@@ -40,17 +54,89 @@ func player_damaged() -> void:
 
 
 func player_destroyed() -> void:
-	if game_over:
+	if run_state != RunState.PLAYING:
 		return
-	game_over = true
+	run_state = RunState.LOST
+	$Interface/GameOver/Title.text = "SIGNAL LOST"
+	$Interface/GameOver/RestartHint.text = "Press R to restart"
 	$Interface/GameOver.visible = true
 	get_tree().paused = true
 
 
 func _input(event: InputEvent) -> void:
-	if game_over and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_R:
+	if run_state != RunState.PLAYING and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_R:
 		get_tree().paused = false
 		get_tree().reload_current_scene()
+
+
+func spawn_echo_shard(origin: Vector2) -> void:
+	if run_state != RunState.PLAYING:
+		return
+	var shard := Node2D.new()
+	shard.set_script(SHARD_SCRIPT)
+	shard.position = origin
+	add_child(shard)
+
+
+func collect_echo_shard(shard: Node2D) -> void:
+	if run_state != RunState.PLAYING:
+		return
+	echoes_collected += 1
+	_update_echo_counter()
+	shard.call("begin_collection")
+	if echoes_collected >= ECHO_TARGET:
+		_stabilize_core()
+
+
+func _stabilize_core() -> void:
+	run_state = RunState.STABILIZED
+	$Interface/GameOver/Title.text = "CORE STABILIZED"
+	$Interface/GameOver/RestartHint.text = "Press R to run again"
+	$Interface/GameOver.visible = true
+	get_tree().paused = true
+
+
+func _update_echo_counter() -> void:
+	$Interface/EchoCounter.text = "ECHOES %d/%d" % [echoes_collected, ECHO_TARGET]
+
+
+func _update_threat_spawner(delta: float) -> void:
+	if get_tree().get_nodes_in_group("echo_wraith").size() >= MAX_WRAITHS:
+		return
+	spawn_timer -= delta
+	if spawn_timer > 0.0:
+		return
+	_spawn_wraith_at_edge()
+	var run_pressure := minf(elapsed_time / 90.0, 1.0)
+	spawn_timer = lerpf(5.3, 2.4, exposure * 0.7 + run_pressure * 0.3)
+
+
+func _spawn_wraith_at_edge() -> void:
+	var player := get_tree().get_first_node_in_group("signal_player") as Node2D
+	var spawn_position := Vector2(80.0, 80.0)
+	for attempt in 8:
+		var edge := randi_range(0, 3)
+		match edge:
+			0: spawn_position = Vector2(randf_range(82.0, 1198.0), 70.0)
+			1: spawn_position = Vector2(1210.0, randf_range(70.0, 620.0))
+			2: spawn_position = Vector2(randf_range(82.0, 1198.0), 630.0)
+			_: spawn_position = Vector2(70.0, randf_range(70.0, 620.0))
+		if player == null or spawn_position.distance_to(player.global_position) >= 290.0:
+			break
+	var wraith := Node2D.new()
+	wraith.set_script(WRAITH_SCRIPT)
+	wraith.position = spawn_position
+	add_child(wraith)
+	wraith.call("begin_emergence")
+
+
+func _update_final_echo_pulse() -> void:
+	var remaining := ECHO_TARGET - echoes_collected
+	if run_state == RunState.PLAYING and remaining <= 2:
+		var pulse := 0.7 + sin(drift * 3.0) * 0.25
+		$Interface/EchoCounter.modulate.a = pulse
+	else:
+		$Interface/EchoCounter.modulate.a = 1.0
 
 
 func _update_exposure() -> void:

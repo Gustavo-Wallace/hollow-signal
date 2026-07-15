@@ -17,6 +17,7 @@ var target_position := Vector2.ZERO
 var phase := 0.0
 var dying := false
 var death_time := 0.0
+var emergence := 1.0
 
 
 func _ready() -> void:
@@ -34,6 +35,7 @@ func _process(delta: float) -> void:
 	reveal_time = maxf(0.0, reveal_time - delta)
 	alert_time = maxf(0.0, alert_time - delta)
 	flash_amount = maxf(0.0, flash_amount - delta * 3.8)
+	emergence = move_toward(emergence, 1.0, delta * 2.2)
 	var target_reveal := 1.0 if reveal_time > 0.0 else 0.08
 	reveal_amount = move_toward(reveal_amount, target_reveal, delta * 1.45)
 	rotation += delta * (0.16 + alert_time * 0.14)
@@ -80,11 +82,18 @@ func receive_signal_pulse(origin: Vector2, force: float, damage: int) -> void:
 	queue_redraw()
 
 
+func begin_emergence() -> void:
+	emergence = 0.0
+	reveal_amount = 0.02
+	queue_redraw()
+
+
 func _begin_death() -> void:
 	dying = true
 	death_time = 0.0
 	velocity = Vector2.ZERO
 	remove_from_group("echo_wraith")
+	get_parent().spawn_echo_shard(global_position)
 
 
 func _process_death(delta: float) -> void:
@@ -99,7 +108,7 @@ func _draw() -> void:
 		_draw_fragments()
 		return
 	var pulse := sin(Time.get_ticks_msec() * 0.002 + phase) * 0.5 + 0.5
-	var alpha := lerpf(0.09, 0.82, reveal_amount)
+	var alpha := lerpf(0.09, 0.82, reveal_amount) * emergence
 	var glow_alpha := alpha * (0.28 + flash_amount * 0.72)
 	var cold := Color(0.22, 0.78, 1.0, alpha)
 	var shadow := Color(0.04, 0.12, 0.19, alpha * 0.8)
@@ -112,6 +121,8 @@ func _draw() -> void:
 	draw_arc(Vector2.ZERO, 24.0 + pulse * 2.0, 0.18, 2.25, 24, Color(0.3, 0.9, 1.0, glow_alpha), 1.3, true)
 	draw_arc(Vector2.ZERO, 24.0 + pulse * 2.0, 3.35, 5.48, 24, Color(0.3, 0.9, 1.0, glow_alpha), 1.3, true)
 	draw_circle(Vector2.ZERO, 3.4 + flash_amount * 1.8, Color(0.62, 0.96, 1.0, alpha * (0.52 + flash_amount * 0.48)))
+	if emergence < 1.0:
+		draw_line(Vector2(0, -42.0 * (1.0 - emergence)), Vector2.ZERO, Color(0.25, 0.85, 1.0, (1.0 - emergence) * 0.55), 1.0, true)
 	if reveal_amount > 0.2:
 		for index in health:
 			draw_circle(Vector2(-6.0 + index * 6.0, 29.0), 1.6, Color(0.34, 0.9, 1.0, alpha * 0.7))
