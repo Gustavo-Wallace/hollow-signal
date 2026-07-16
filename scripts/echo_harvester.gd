@@ -30,6 +30,7 @@ var emergence := 1.0
 var dying := false
 var death_time := 0.0
 var wander_target := Vector2.ZERO
+var last_player_position := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -70,14 +71,19 @@ func _process(delta: float) -> void:
 func _process_movement(delta: float) -> void:
 	var player := get_tree().get_first_node_in_group("signal_player") as Node2D
 	var player_exposure := float(player.call("get_exposure")) if player else 0.0
+	var signal_hidden: bool = player != null and get_parent().is_player_in_null_pocket(player.global_position) and get_parent().get_null_pocket_silence_time() >= 0.72
+	if player and not signal_hidden:
+		last_player_position = player.global_position
 	if stagger_time > 0.0:
 		velocity = velocity.move_toward(Vector2.ZERO, delta * 440.0 * stagger_brake)
 	elif get_parent().is_escape() and player:
 		var escape_direction := global_position.direction_to(player.global_position)
 		velocity = velocity.move_toward(escape_direction * CHARGED_SPEED * (1.0 + player_exposure * 0.45), delta * ACCELERATION)
 	elif stored_echoes >= 2 and player:
-		var charged_direction := global_position.direction_to(player.global_position)
-		velocity = velocity.move_toward(charged_direction * CHARGED_SPEED * (1.0 + player_exposure * 0.35), delta * ACCELERATION)
+		var pursuit_target := last_player_position if signal_hidden else player.global_position
+		var charged_direction := global_position.direction_to(pursuit_target)
+		var tracking_multiplier := 0.68 if signal_hidden else 1.0
+		velocity = velocity.move_toward(charged_direction * CHARGED_SPEED * tracking_multiplier * (1.0 + player_exposure * 0.35), delta * ACCELERATION)
 	elif channel_pause <= 0.0:
 		if not _valid_target_shard():
 			target_shard = _find_nearest_shard()

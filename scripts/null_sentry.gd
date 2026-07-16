@@ -73,7 +73,10 @@ func _update_attack_cycle(delta: float) -> void:
 		_update_observe_movement(delta, player)
 		attack_timer -= delta
 		if attack_timer <= 0.0:
-			_begin_lock(player.global_position)
+			if _can_begin_lock(player):
+				_begin_lock(player.global_position)
+			else:
+				attack_timer = 0.35
 	elif attack_state == AttackState.LOCK:
 		velocity = velocity.move_toward(Vector2.ZERO, delta * 230.0)
 		global_position += velocity * delta
@@ -129,6 +132,10 @@ func _begin_lock(target: Vector2) -> void:
 	reveal_time = maxf(reveal_time, 1.2)
 	flash_amount = 0.65
 	get_parent().audio_event("sentry_lock")
+
+
+func _can_begin_lock(player: Node2D) -> bool:
+	return not (get_parent().is_player_in_null_pocket(player.global_position) and get_parent().get_null_pocket_silence_time() >= 0.5)
 
 
 func _fire_beam(player: Node2D) -> void:

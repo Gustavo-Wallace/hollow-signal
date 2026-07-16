@@ -72,6 +72,7 @@ func _process_movement(delta: float) -> void:
 	if player and player.has_method("get_exposure"):
 		player_exposure = float(player.call("get_exposure"))
 	var progress_pressure: float = float(get_parent().get_progress_ratio())
+	var signal_hidden: bool = get_parent().is_player_in_null_pocket(player.global_position) and get_parent().get_null_pocket_silence_time() >= 0.72 if player else false
 	if _process_trace_dash(delta):
 		_try_damage_player(player)
 		return
@@ -81,12 +82,16 @@ func _process_movement(delta: float) -> void:
 		var has_target := false
 		if player:
 			var awareness_radius: float = lerpf(140.0, 620.0, player_exposure) + progress_pressure * 85.0
-			if alert_time > 0.0 or global_position.distance_to(player.global_position) <= awareness_radius:
+			if (alert_time > 0.0 or global_position.distance_to(player.global_position) <= awareness_radius) and not signal_hidden:
 				target_position = player.global_position
+				has_target = true
+			elif signal_hidden and target_position != Vector2.ZERO:
 				has_target = true
 		if has_target:
 			var direction := global_position.direction_to(target_position)
 			var speed := ALERT_SPEED if alert_time > 0.0 else DORMANT_SPEED
+			if signal_hidden:
+				speed *= 0.62
 			velocity = velocity.move_toward(direction * speed * (1.0 + player_exposure * 1.15 + progress_pressure * 0.3), delta * 128.0)
 		else:
 			velocity = velocity.move_toward(Vector2.ZERO, delta * 52.0)

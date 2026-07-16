@@ -12,6 +12,7 @@ const MAX_CHARGE_TRACE_RATE := 0.55
 const MAX_HEALTH := 3
 const INVULNERABILITY_DURATION := 1.0
 const EXPOSURE_DECAY := 0.05
+const NULL_POCKET_DECAY_MULTIPLIER := 3.0
 const TRACE_MOVE_THRESHOLD := 72.0
 const TRACE_WINDOW := 2.4
 const ARENA_BOUNDS := Rect2(62.0, 62.0, 1156.0, 556.0)
@@ -32,6 +33,8 @@ var is_charging := false
 var charge_ratio := 0.0
 var max_charge_hold_time := 0.0
 var current_cooldown_length := QUICK_COOLDOWN
+var null_suppressed := false
+var signal_release_required := false
 @onready var trail: Line2D = $Trail
 @onready var signal_hint: Label = $"../Interface/SignalHint"
 
@@ -50,16 +53,28 @@ func _process(delta: float) -> void:
 		return
 	_move(delta)
 	_update_trail()
+	null_suppressed = get_parent().is_player_in_null_pocket(global_position)
+	if null_suppressed:
+		if is_charging:
+			_cancel_charge()
+		if Input.is_action_pressed("ui_accept"):
+			signal_release_required = true
 	pulse_cooldown = maxf(0.0, pulse_cooldown - delta)
 	invulnerability_time = maxf(0.0, invulnerability_time - delta)
 	var progress_decay := lerpf(1.0, 0.62, get_parent().get_progress_ratio())
 	if get_parent().is_escape():
 		progress_decay = 0.2
-	exposure = maxf(0.0, exposure - EXPOSURE_DECAY * progress_decay * delta)
+	var exposure_decay_multiplier := NULL_POCKET_DECAY_MULTIPLIER if null_suppressed else 1.0
+	exposure = maxf(0.0, exposure - EXPOSURE_DECAY * progress_decay * exposure_decay_multiplier * delta)
 	damage_flash = maxf(0.0, damage_flash - delta * 3.5)
 	_update_signal_charge(delta)
 	_update_stationary_trace(delta)
-	signal_hint.modulate.a = 0.95 if is_charging else 0.28 + (1.0 - pulse_cooldown / current_cooldown_length) * 0.72
+	if null_suppressed:
+		signal_hint.text = "SIGNAL MUTED"
+		signal_hint.modulate.a = 0.58
+	else:
+		signal_hint.text = "HOLD SPACE — charge signal"
+		signal_hint.modulate.a = 0.95 if is_charging else 0.28 + (1.0 - pulse_cooldown / current_cooldown_length) * 0.72
 	queue_redraw()
 
 
@@ -85,6 +100,12 @@ func _update_trail() -> void:
 
 
 func _update_signal_charge(delta: float) -> void:
+	if null_suppressed:
+		return
+	if signal_release_required:
+		if not Input.is_action_pressed("ui_accept"):
+			signal_release_required = false
+		return
 	if Input.is_action_just_pressed("ui_accept") and pulse_cooldown <= 0.0:
 		is_charging = true
 		charge_ratio = 0.0
@@ -119,6 +140,10 @@ func _cancel_charge() -> void:
 
 
 func _update_stationary_trace(delta: float) -> void:
+	if null_suppressed:
+		trace_time = 0.0
+		trace_value = 0.0
+		return
 	if global_position.distance_to(trace_anchor) >= TRACE_MOVE_THRESHOLD:
 		trace_anchor = global_position
 		trace_time = 0.0
@@ -162,16 +187,26 @@ func get_max_health() -> int:
 	return MAX_HEALTH
 
 
+func break_trace_from_null() -> void:
+	trace_time = 0.0
+	trace_value = 0.0
+	if trace_locked:
+		trace_locked = false
+		get_parent().clear_trace_lock()
+
+
 func _draw() -> void:
 	var pulse := sin(Time.get_ticks_msec() * 0.003) * 0.5 + 0.5
 	var cooldown_progress := 1.0 - pulse_cooldown / current_cooldown_length
 	var blink_alpha := 1.0 if invulnerability_time <= 0.0 else 0.38 + 0.62 * absf(sin(Time.get_ticks_msec() * 0.018))
 	var charge_pulse := sin(Time.get_ticks_msec() * (0.004 + charge_ratio * 0.008)) * 0.5 + 0.5
+	var null_light := 0.52 if null_suppressed else 1.0
 	var aura_radius := 28.0 + pulse * 3.0 + exposure * 18.0 + charge_ratio * 12.0
-	draw_circle(Vector2.ZERO, aura_radius, Color(0.05, 0.5, 0.82, (0.055 + exposure * 0.14 + charge_ratio * 0.08) * blink_alpha))
-	draw_circle(Vector2.ZERO, 19.0 + pulse * 2.0 + exposure * 7.0, Color(0.1, 0.72, 1.0, (0.12 + exposure * 0.16) * blink_alpha))
+	draw_circle(Vector2.ZERO, aura_radius, Color(0.05, 0.5, 0.82, (0.055 + exposure * 0.14 + charge_ratio * 0.08) * blink_alpha * null_light))
+	draw_circle(Vector2.ZERO, 19.0 + pulse * 2.0 + exposure * 7.0, Color(0.1, 0.72, 1.0, (0.12 + exposure * 0.16) * blink_alpha * null_light))
 	draw_arc(Vector2.ZERO, 15.0, 0.0, TAU, 48, Color(0.3, 0.9, 1.0, (0.72 + exposure * 0.2) * blink_alpha), 1.2, true)
-	draw_arc(Vector2.ZERO, 22.0, -PI * 0.5, -PI * 0.5 + TAU * cooldown_progress, 32, Color(0.35, 0.93, 1.0, 0.52 * blink_alpha), 1.3, true)
+	if not null_suppressed:
+		draw_arc(Vector2.ZERO, 22.0, -PI * 0.5, -PI * 0.5 + TAU * cooldown_progress, 32, Color(0.35, 0.93, 1.0, 0.52 * blink_alpha), 1.3, true)
 	if is_charging:
 		var charge_alpha := (0.42 + charge_ratio * 0.48) * blink_alpha
 		draw_arc(Vector2.ZERO, 27.0, -PI * 0.5, -PI * 0.5 + TAU * charge_ratio, 44, Color(0.45, 0.95, 1.0, charge_alpha), 2.0, true)
@@ -182,7 +217,7 @@ func _draw() -> void:
 	if exposure > 0.05:
 		draw_arc(Vector2.ZERO, 34.0 + pulse * 5.0 + exposure * 12.0, 0.45, 2.35, 24, Color(0.3, 0.92, 1.0, exposure * 0.38 * blink_alpha), 1.0, true)
 		draw_arc(Vector2.ZERO, 34.0 + pulse * 5.0 + exposure * 12.0, 3.6, 5.5, 24, Color(0.3, 0.92, 1.0, exposure * 0.38 * blink_alpha), 1.0, true)
-	draw_circle(Vector2.ZERO, 10.0 + exposure * 1.5, Color(0.22, 0.83, 1.0, 0.92 * blink_alpha))
+	draw_circle(Vector2.ZERO, 10.0 + exposure * 1.5, Color(0.22, 0.83, 1.0, 0.92 * blink_alpha * null_light))
 	draw_circle(Vector2.ZERO, 5.0 + damage_flash * 1.6, Color(0.8, 0.98, 1.0, blink_alpha))
 	draw_line(Vector2(-17, 0), Vector2(17, 0), Color(0.35, 0.9, 1.0, 0.3 * blink_alpha), 1.0)
 	draw_line(Vector2(0, -17), Vector2(0, 17), Color(0.35, 0.9, 1.0, 0.3 * blink_alpha), 1.0)

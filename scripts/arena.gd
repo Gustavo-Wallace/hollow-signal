@@ -8,6 +8,7 @@ const SENTRY_SCRIPT := preload("res://scripts/null_sentry.gd")
 const SHARD_SCRIPT := preload("res://scripts/echo_shard.gd")
 const SCAR_SCRIPT := preload("res://scripts/resonance_scar.gd")
 const NULL_GATE_SCRIPT := preload("res://scripts/null_gate.gd")
+const NULL_POCKET_SCRIPT := preload("res://scripts/null_pocket.gd")
 const ECHO_TARGET := 8
 const MAX_WRAITHS := 8
 
@@ -30,6 +31,9 @@ var sentry_spawn_cooldown := 0.0
 var escape_timer := 14.0
 var escape_intro_time := 0.0
 var null_gate: Node2D
+var null_pocket: Node2D
+var null_pocket_spawn_timer := 18.0
+var null_pocket_cooldown := 0.0
 var status_message_time := 0.0
 @onready var arena_camera: Camera2D = $ArenaCamera
 
@@ -51,6 +55,7 @@ func _process(delta: float) -> void:
 		_update_threat_spawner(delta)
 		_update_trace_lock(delta)
 		_update_escape_state(delta)
+		_update_null_pocket(delta)
 	_update_camera_shake(delta)
 	_update_final_echo_pulse()
 	_update_status_message(delta)
@@ -107,6 +112,16 @@ func is_playing() -> bool:
 
 func is_escape() -> bool:
 	return run_state == RunState.ESCAPE
+
+
+func is_player_in_null_pocket(player_position: Vector2) -> bool:
+	return null_pocket != null and is_instance_valid(null_pocket) and bool(null_pocket.call("contains", player_position))
+
+
+func get_null_pocket_silence_time() -> float:
+	if null_pocket != null and is_instance_valid(null_pocket):
+		return float(null_pocket.call("get_silence_time"))
+	return 0.0
 
 
 func get_progress_ratio() -> float:
@@ -215,6 +230,8 @@ func _begin_escape() -> void:
 	escape_intro_time = 0.8
 	escape_timer = 14.0
 	clear_trace_lock()
+	if null_pocket != null and is_instance_valid(null_pocket):
+		null_pocket.call("force_expire")
 	_show_status_message("CORE PRIMED", 0.8)
 	for shard in get_tree().get_nodes_in_group("echo_shard"):
 		if shard.has_method("expire"):
@@ -239,6 +256,56 @@ func _update_escape_state(delta: float) -> void:
 	$Interface/Containment.text = "CONTAINMENT %.1f" % escape_timer
 	if escape_timer <= 0.0:
 		_fail_escape()
+
+
+func _update_null_pocket(delta: float) -> void:
+	if run_state != RunState.PLAYING:
+		return
+	null_pocket_cooldown = maxf(0.0, null_pocket_cooldown - delta)
+	if null_pocket != null and is_instance_valid(null_pocket):
+		return
+	null_pocket_spawn_timer = maxf(0.0, null_pocket_spawn_timer - delta)
+	if null_pocket_spawn_timer > 0.0 or null_pocket_cooldown > 0.0:
+		return
+	_spawn_null_pocket()
+
+
+func _spawn_null_pocket() -> void:
+	var player := get_tree().get_first_node_in_group("signal_player") as Node2D
+	if player == null:
+		return
+	var pocket_position := Vector2(220.0, 170.0)
+	for attempt in 18:
+		var candidate := Vector2(randf_range(176.0, 1104.0), randf_range(142.0, 578.0))
+		if candidate.distance_to(VIEWPORT_SIZE * 0.5) < 175.0 or candidate.distance_to(player.global_position) < 280.0:
+			continue
+		if null_gate != null and is_instance_valid(null_gate) and candidate.distance_to(null_gate.global_position) < 160.0:
+			continue
+		var blocked := false
+		for shard in get_tree().get_nodes_in_group("echo_shard"):
+			if shard is Node2D and candidate.distance_to(shard.global_position) < 118.0:
+				blocked = true
+				break
+		if not blocked:
+			for scar in get_tree().get_nodes_in_group("resonance_scar"):
+				if scar is Node2D and candidate.distance_to(scar.global_position) < 180.0:
+					blocked = true
+					break
+		if not blocked:
+			pocket_position = candidate
+			break
+	null_pocket = Node2D.new()
+	null_pocket.set_script(NULL_POCKET_SCRIPT)
+	null_pocket.position = pocket_position
+	add_child(null_pocket)
+	audio_event("pocket_spawn")
+
+
+func null_pocket_collapsed(pocket: Node2D) -> void:
+	if pocket == null_pocket:
+		null_pocket = null
+		null_pocket_cooldown = 10.0
+		null_pocket_spawn_timer = 10.0
 
 
 func _spawn_null_gate() -> void:

@@ -13,6 +13,7 @@ var trace_voice: AudioStreamPlayer
 var harvester_voice: AudioStreamPlayer
 var sentry_voice: AudioStreamPlayer
 var gate_voice: AudioStreamPlayer
+var pocket_voice: AudioStreamPlayer
 var run_finished := false
 var trace_was_active := false
 var escape_was_active := false
@@ -28,6 +29,7 @@ func _ready() -> void:
 	harvester_voice = _make_voice()
 	sentry_voice = _make_voice()
 	gate_voice = _make_voice()
+	pocket_voice = _make_voice()
 	for index in 8:
 		sound_pool.append(_make_voice())
 	_start_loop(ambience, "ambience", -31.5, 1.0)
@@ -46,12 +48,14 @@ func _process(delta: float) -> void:
 	if player and player.has_method("get_exposure"):
 		exposure = float(player.call("get_exposure"))
 	var escape_active := arena.has_method("is_escape") and bool(arena.call("is_escape"))
-	var ambience_target := -31.5 + exposure * 5.0 + (2.0 if escape_active else 0.0)
+	var signal_muted := player != null and bool(player.get("null_suppressed"))
+	var ambience_target := -31.5 + exposure * 5.0 + (2.0 if escape_active else 0.0) - (7.0 if signal_muted else 0.0)
 	_set_loop(ambience, "ambience", true, ambience_target, 0.96 + exposure * 0.1 + (0.035 if escape_active else 0.0), delta)
 	_update_charge(player, delta)
 	_update_trace(arena, exposure, delta)
 	_update_enemy_layers(delta)
 	_update_gate_layer(delta)
+	_update_pocket_layer(signal_muted, delta)
 	_update_escape_pulse(arena, escape_active, delta)
 	if escape_active and not escape_was_active:
 		trigger("escape")
@@ -100,6 +104,11 @@ func trigger(kind: String, value: float = 0.0) -> void:
 		"escape": _play("escape", 1.0, -6.5)
 		"gate_open": _play("gate_open", 1.0, -7.0)
 		"gate_enter": _play("gate_enter", 1.0, -5.5)
+		"pocket_spawn": _play("pocket_spawn", 1.0, -13.0)
+		"pocket_enter": _play("pocket_enter", 1.0, -16.0)
+		"pocket_exit": _play("pocket_exit", 1.0, -19.0)
+		"pocket_unstable": _play("pocket_unstable", 1.0, -20.0)
+		"pocket_collapse": _play_limited("pocket_collapse", 0.15, 1.0, -11.0)
 		"restart": run_finished = false
 
 
@@ -110,6 +119,7 @@ func _build_streams() -> void:
 	streams["harvester"] = _make_loop([156.0, 234.0], [0.12, 0.045])
 	streams["sentry"] = _make_loop([188.0, 282.0], [0.1, 0.04])
 	streams["gate"] = _make_loop([57.0, 114.0, 228.0], [0.14, 0.055, 0.018])
+	streams["pocket"] = _make_loop([38.0, 76.0, 152.0], [0.09, 0.035, 0.012])
 	streams["signal_quick"] = _make_tone(0.22, 640.0, 1.9, 0.0, true)
 	streams["signal_resonant"] = _make_tone(0.44, 166.0, 2.04, 0.04, false)
 	streams["signal_break"] = _make_tone(0.62, 76.0, 4.2, 0.12, false)
@@ -138,6 +148,11 @@ func _build_streams() -> void:
 	streams["escape_tick"] = _make_tone(0.16, 86.0, 1.55, 0.02, false)
 	streams["gate_open"] = _make_tone(0.58, 64.0, 3.8, 0.05, false)
 	streams["gate_enter"] = _make_tone(0.5, 118.0, 2.35, 0.04, false)
+	streams["pocket_spawn"] = _make_tone(0.46, 118.0, 0.42, 0.08, true)
+	streams["pocket_enter"] = _make_tone(0.18, 182.0, 0.42, 0.03, true)
+	streams["pocket_exit"] = _make_tone(0.2, 104.0, 1.48, 0.0, false)
+	streams["pocket_unstable"] = _make_tone(0.18, 154.0, 0.58, 0.04, true)
+	streams["pocket_collapse"] = _make_tone(0.34, 96.0, 0.34, 0.1, true)
 
 
 func _make_tone(duration: float, frequency: float, overtone_ratio: float, noise_amount: float, descends: bool) -> AudioStreamWAV:
@@ -270,6 +285,11 @@ func _update_gate_layer(delta: float) -> void:
 	_set_loop(gate_voice, "gate", active, -42.0 + near * 14.0, 0.92 + near * 0.15, delta)
 
 
+func _update_pocket_layer(player_inside: bool, delta: float) -> void:
+	var active := player_inside and not get_tree().get_nodes_in_group("null_pocket").is_empty()
+	_set_loop(pocket_voice, "pocket", active, -40.0, 0.9, delta)
+
+
 func _update_escape_pulse(arena: Node, active: bool, delta: float) -> void:
 	if not active:
 		escape_pulse_timer = 0.0
@@ -290,3 +310,4 @@ func _stop_live_layers(delta: float) -> void:
 	_set_loop(harvester_voice, "harvester", false, SILENT_DB, 1.0, delta)
 	_set_loop(sentry_voice, "sentry", false, SILENT_DB, 1.0, delta)
 	_set_loop(gate_voice, "gate", false, SILENT_DB, 1.0, delta)
+	_set_loop(pocket_voice, "pocket", false, SILENT_DB, 1.0, delta)
