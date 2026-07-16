@@ -4,6 +4,7 @@ const VIEWPORT_SIZE := Vector2(1280.0, 720.0)
 const PULSE_SCRIPT := preload("res://scripts/pulse.gd")
 const WRAITH_SCRIPT := preload("res://scripts/echo_wraith.gd")
 const HARVESTER_SCRIPT := preload("res://scripts/echo_harvester.gd")
+const SENTRY_SCRIPT := preload("res://scripts/null_sentry.gd")
 const SHARD_SCRIPT := preload("res://scripts/echo_shard.gd")
 const SCAR_SCRIPT := preload("res://scripts/resonance_scar.gd")
 const NULL_GATE_SCRIPT := preload("res://scripts/null_gate.gd")
@@ -25,6 +26,7 @@ var trace_lock := false
 var trace_position := Vector2.ZERO
 var trace_dash_timer := 0.0
 var harvester_spawn_cooldown := 0.0
+var sentry_spawn_cooldown := 0.0
 var escape_timer := 14.0
 var escape_intro_time := 0.0
 var null_gate: Node2D
@@ -45,6 +47,7 @@ func _process(delta: float) -> void:
 	if is_playing():
 		elapsed_time += delta
 		harvester_spawn_cooldown = maxf(0.0, harvester_spawn_cooldown - delta)
+		sentry_spawn_cooldown = maxf(0.0, sentry_spawn_cooldown - delta)
 		_update_threat_spawner(delta)
 		_update_trace_lock(delta)
 		_update_escape_state(delta)
@@ -176,6 +179,10 @@ func spawn_echo_shard(origin: Vector2) -> void:
 
 func harvester_destroyed() -> void:
 	harvester_spawn_cooldown = 7.0
+
+
+func sentry_destroyed() -> void:
+	sentry_spawn_cooldown = 8.0
 
 
 func collect_echo_shard(shard: Node2D) -> void:
@@ -324,9 +331,15 @@ func _spawn_threat_at_edge() -> void:
 		if player == null or spawn_position.distance_to(player.global_position) >= 290.0:
 			break
 	var can_spawn_harvester := (echoes_collected >= 2 or elapsed_time >= 24.0) and harvester_spawn_cooldown <= 0.0 and get_tree().get_nodes_in_group("echo_harvester").is_empty()
+	var can_spawn_sentry := (echoes_collected >= 3 or elapsed_time >= 30.0) and sentry_spawn_cooldown <= 0.0 and get_tree().get_nodes_in_group("null_sentry").is_empty() and (not is_escape() or escape_timer > 3.0)
 	var harvester_chance := 0.25 if is_machine_panic() else 0.18
+	var sentry_chance := 0.18 if is_escape() else 0.15
+	var harvester_roll_limit := sentry_chance + harvester_chance if can_spawn_sentry else harvester_chance
 	var threat := Node2D.new()
-	if can_spawn_harvester and randf() <= harvester_chance:
+	var special_roll := randf()
+	if can_spawn_sentry and special_roll <= sentry_chance:
+		threat.set_script(SENTRY_SCRIPT)
+	elif can_spawn_harvester and special_roll <= harvester_roll_limit:
 		threat.set_script(HARVESTER_SCRIPT)
 	else:
 		threat.set_script(WRAITH_SCRIPT)
