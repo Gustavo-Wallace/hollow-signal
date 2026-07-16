@@ -8,6 +8,8 @@ const MAX_HEALTH := 3
 const INVULNERABILITY_DURATION := 1.0
 const EXPOSURE_PER_PULSE := 0.31
 const EXPOSURE_DECAY := 0.05
+const TRACE_MOVE_THRESHOLD := 72.0
+const TRACE_WINDOW := 2.4
 const ARENA_BOUNDS := Rect2(62.0, 62.0, 1156.0, 556.0)
 
 var velocity := Vector2.ZERO
@@ -18,6 +20,10 @@ var invulnerability_time := 0.0
 var exposure := 0.0
 var damage_flash := 0.0
 var destroyed := false
+var trace_anchor := Vector2.ZERO
+var trace_time := 0.0
+var trace_pulses := 0
+var trace_locked := false
 @onready var trail: Line2D = $Trail
 @onready var signal_hint: Label = $"../Interface/SignalHint"
 
@@ -26,6 +32,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_to_group("signal_player")
 	trail_points.append(global_position)
+	trace_anchor = global_position
 	queue_redraw()
 
 
@@ -44,6 +51,8 @@ func _process(delta: float) -> void:
 		get_parent().emit_pulse(global_position)
 		pulse_cooldown = PULSE_COOLDOWN
 		exposure = minf(1.0, exposure + EXPOSURE_PER_PULSE)
+		trace_pulses += 1
+	_update_stationary_trace(delta)
 	queue_redraw()
 
 
@@ -64,6 +73,24 @@ func _update_trail() -> void:
 		trail_points.remove_at(trail_points.size() - 1)
 	trail.points = trail_points
 	trail.default_color.a = 0.14 + minf(velocity.length() / MAX_SPEED, 1.0) * 0.28 + exposure * 0.18
+
+
+func _update_stationary_trace(delta: float) -> void:
+	if global_position.distance_to(trace_anchor) >= TRACE_MOVE_THRESHOLD:
+		trace_anchor = global_position
+		trace_time = 0.0
+		trace_pulses = 0
+		if trace_locked:
+			trace_locked = false
+			get_parent().clear_trace_lock()
+		return
+	trace_time += delta
+	if not trace_locked and trace_time >= TRACE_WINDOW and trace_pulses >= 3:
+		trace_locked = true
+		get_parent().activate_trace_lock(global_position)
+	if not trace_locked and trace_time >= TRACE_WINDOW + 0.8:
+		trace_time = 0.0
+		trace_pulses = 0
 
 
 func take_damage(source_position: Vector2) -> void:

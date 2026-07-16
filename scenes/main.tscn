@@ -1,41 +1,21 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene format=3 uid="uid://f5tad66xctaw"]
 
-[ext_resource type="Script" path="res://scripts/arena.gd" id="1_arena"]
-[ext_resource type="Script" path="res://scripts/player.gd" id="2_player"]
-[ext_resource type="Script" path="res://scripts/echo_wraith.gd" id="3_wraith"]
-[ext_resource type="Script" path="res://scripts/hud.gd" id="4_hud"]
+[ext_resource type="Script" uid="uid://jat360p57pet" path="res://scripts/arena.gd" id="1_arena"]
+[ext_resource type="Script" uid="uid://c27gv1nhk7hfe" path="res://scripts/player.gd" id="2_player"]
+[ext_resource type="Script" uid="uid://c2fcurf0sixrp" path="res://scripts/echo_wraith.gd" id="3_wraith"]
+[ext_resource type="Script" uid="uid://d4c3m53fny5ho" path="res://scripts/hud.gd" id="4_hud"]
 
-[node name="HollowSignal" type="Node2D"]
+[node name="HollowSignal" type="Node2D" unique_id=1353385711]
 script = ExtResource("1_arena")
 
-[node name="ArenaCamera" type="Camera2D" parent="."]
+[node name="ArenaCamera" type="Camera2D" parent="." unique_id=1833794020]
 position = Vector2(640, 360)
 
-[node name="Player" type="Node2D" parent="."]
+[node name="Player" type="Node2D" parent="." unique_id=1932255778]
 position = Vector2(640, 360)
 script = ExtResource("2_player")
 
-[node name="EchoWraithA" type="Node2D" parent="."]
-position = Vector2(530, 235)
-script = ExtResource("3_wraith")
-
-[node name="EchoWraithB" type="Node2D" parent="."]
-position = Vector2(822, 280)
-script = ExtResource("3_wraith")
-
-[node name="EchoWraithC" type="Node2D" parent="."]
-position = Vector2(772, 492)
-script = ExtResource("3_wraith")
-
-[node name="EchoWraithD" type="Node2D" parent="."]
-position = Vector2(465, 458)
-script = ExtResource("3_wraith")
-
-[node name="EchoWraithE" type="Node2D" parent="."]
-position = Vector2(326, 188)
-script = ExtResource("3_wraith")
-
-[node name="Trail" type="Line2D" parent="Player"]
+[node name="Trail" type="Line2D" parent="Player" unique_id=433068733]
 top_level = true
 width = 3.0
 default_color = Color(0.2, 0.86, 1, 0.32)
@@ -43,12 +23,32 @@ begin_cap_mode = 2
 end_cap_mode = 2
 antialiased = true
 
-[node name="Interface" type="CanvasLayer" parent="."]
+[node name="EchoWraithA" type="Node2D" parent="." unique_id=177810161]
+position = Vector2(530, 235)
+script = ExtResource("3_wraith")
 
-[node name="Hud" type="Node2D" parent="Interface"]
+[node name="EchoWraithB" type="Node2D" parent="." unique_id=1087656890]
+position = Vector2(822, 280)
+script = ExtResource("3_wraith")
+
+[node name="EchoWraithC" type="Node2D" parent="." unique_id=2019259549]
+position = Vector2(772, 492)
+script = ExtResource("3_wraith")
+
+[node name="EchoWraithD" type="Node2D" parent="." unique_id=1927646632]
+position = Vector2(465, 458)
+script = ExtResource("3_wraith")
+
+[node name="EchoWraithE" type="Node2D" parent="." unique_id=1640493851]
+position = Vector2(326, 188)
+script = ExtResource("3_wraith")
+
+[node name="Interface" type="CanvasLayer" parent="." unique_id=1408991666]
+
+[node name="Hud" type="Node2D" parent="Interface" unique_id=293533059]
 script = ExtResource("4_hud")
 
-[node name="SignalHint" type="Label" parent="Interface"]
+[node name="SignalHint" type="Label" parent="Interface" unique_id=63173352]
 offset_left = 48.0
 offset_top = 662.0
 offset_right = 330.0
@@ -60,7 +60,7 @@ theme_override_constants/shadow_offset_y = 2
 theme_override_font_sizes/font_size = 15
 text = "SPACE — emit signal"
 
-[node name="EchoCounter" type="Label" parent="Interface"]
+[node name="EchoCounter" type="Label" parent="Interface" unique_id=622364376]
 offset_left = 984.0
 offset_top = 84.0
 offset_right = 1225.0
@@ -70,7 +70,17 @@ theme_override_font_sizes/font_size = 13
 text = "ECHOES 0/8"
 horizontal_alignment = 2
 
-[node name="GameOver" type="Control" parent="Interface"]
+[node name="TraceLock" type="Label" parent="Interface" unique_id=863802532]
+visible = false
+offset_top = 112.0
+offset_right = 1280.0
+offset_bottom = 136.0
+theme_override_colors/font_color = Color(0.48, 0.87, 1, 0.72)
+theme_override_font_sizes/font_size = 13
+text = "TRACE LOCK"
+horizontal_alignment = 1
+
+[node name="GameOver" type="Control" parent="Interface" unique_id=122623286]
 visible = false
 layout_mode = 3
 anchors_preset = 0
@@ -78,7 +88,7 @@ offset_right = 1280.0
 offset_bottom = 720.0
 mouse_filter = 2
 
-[node name="Title" type="Label" parent="Interface/GameOver"]
+[node name="Title" type="Label" parent="Interface/GameOver" unique_id=1184616156]
 layout_mode = 0
 offset_top = 290.0
 offset_right = 1280.0
@@ -91,7 +101,7 @@ theme_override_font_sizes/font_size = 30
 text = "SIGNAL LOST"
 horizontal_alignment = 1
 
-[node name="RestartHint" type="Label" parent="Interface/GameOver"]
+[node name="RestartHint" type="Label" parent="Interface/GameOver" unique_id=1005368929]
 layout_mode = 0
 offset_top = 343.0
 offset_right = 1280.0

@@ -18,6 +18,9 @@ var run_state := RunState.PLAYING
 var echoes_collected := 0
 var spawn_timer := 3.2
 var elapsed_time := 0.0
+var trace_lock := false
+var trace_position := Vector2.ZERO
+var trace_dash_timer := 0.0
 @onready var arena_camera: Camera2D = $ArenaCamera
 
 
@@ -34,6 +37,7 @@ func _process(delta: float) -> void:
 	if run_state == RunState.PLAYING:
 		elapsed_time += delta
 		_update_threat_spawner(delta)
+		_update_trace_lock(delta)
 	_update_camera_shake(delta)
 	_update_final_echo_pulse()
 	queue_redraw()
@@ -65,10 +69,53 @@ func is_machine_panic() -> bool:
 	return is_playing() and ECHO_TARGET - echoes_collected <= 2
 
 
+func activate_trace_lock(origin: Vector2) -> void:
+	if not is_playing() or trace_lock:
+		return
+	trace_lock = true
+	trace_position = origin
+	trace_dash_timer = 0.38
+	$Interface/TraceLock.visible = true
+
+
+func clear_trace_lock() -> void:
+	trace_lock = false
+	trace_dash_timer = 0.0
+	$Interface/TraceLock.visible = false
+
+
+func _update_trace_lock(delta: float) -> void:
+	if not trace_lock:
+		return
+	var player := get_tree().get_first_node_in_group("signal_player") as Node2D
+	if player:
+		trace_position = player.global_position
+	trace_dash_timer -= delta
+	if trace_dash_timer <= 0.0:
+		_request_trace_dashes()
+		trace_dash_timer = 1.7
+
+
+func _request_trace_dashes() -> void:
+	var player := get_tree().get_first_node_in_group("signal_player") as Node2D
+	if player == null:
+		return
+	var candidates := get_tree().get_nodes_in_group("echo_wraith")
+	candidates.shuffle()
+	var started := 0
+	for wraith in candidates:
+		if wraith is Node2D and wraith.global_position.distance_to(player.global_position) >= 125.0 and wraith.has_method("begin_trace_dash"):
+			wraith.call("begin_trace_dash", player.global_position)
+			started += 1
+			if started >= 2:
+				break
+
+
 func player_destroyed() -> void:
 	if run_state != RunState.PLAYING:
 		return
 	run_state = RunState.LOST
+	clear_trace_lock()
 	$Interface/GameOver/Title.text = "SIGNAL LOST"
 	$Interface/GameOver/RestartHint.text = "Press R to restart"
 	$Interface/GameOver.visible = true
@@ -102,6 +149,7 @@ func collect_echo_shard(shard: Node2D) -> void:
 
 func _stabilize_core() -> void:
 	run_state = RunState.STABILIZED
+	clear_trace_lock()
 	$Interface/GameOver/Title.text = "CORE STABILIZED"
 	$Interface/GameOver/RestartHint.text = "Press R to run again"
 	$Interface/GameOver.visible = true
@@ -201,7 +249,18 @@ func _draw() -> void:
 	_draw_grid()
 	_draw_machine_rings()
 	_draw_stars()
+	_draw_trace_lock()
 	_draw_frame()
+
+
+func _draw_trace_lock() -> void:
+	if not trace_lock:
+		return
+	var pulse := 0.55 + sin(drift * 5.0) * 0.2
+	draw_arc(trace_position, 46.0 + pulse * 10.0, 0.0, TAU, 48, Color(0.36, 0.9, 1.0, pulse * 0.4), 1.0, true)
+	for angle in [0.0, TAU / 3.0, TAU * 2.0 / 3.0]:
+		var direction := Vector2.RIGHT.rotated(angle + drift * 0.22)
+		draw_line(trace_position + direction * 118.0, trace_position + direction * 60.0, Color(0.36, 0.9, 1.0, pulse * 0.48), 1.2, true)
 
 
 func _draw_grid() -> void:
