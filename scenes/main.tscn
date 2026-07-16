@@ -4,9 +4,13 @@
 [ext_resource type="Script" uid="uid://c27gv1nhk7hfe" path="res://scripts/player.gd" id="2_player"]
 [ext_resource type="Script" uid="uid://c2fcurf0sixrp" path="res://scripts/echo_wraith.gd" id="3_wraith"]
 [ext_resource type="Script" uid="uid://d4c3m53fny5ho" path="res://scripts/hud.gd" id="4_hud"]
+[ext_resource type="Script" uid="uid://i4304c4os4db" path="res://scripts/procedural_audio.gd" id="5_audio"]
 
 [node name="HollowSignal" type="Node2D" unique_id=1353385711]
 script = ExtResource("1_arena")
+
+[node name="AudioDirector" type="Node" parent="." unique_id=1672322057]
+script = ExtResource("5_audio")
 
 [node name="ArenaCamera" type="Camera2D" parent="." unique_id=1833794020]
 position = Vector2(640, 360)

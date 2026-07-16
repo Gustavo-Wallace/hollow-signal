@@ -127,6 +127,7 @@ func _process_trace_dash(delta: float) -> bool:
 func receive_signal_pulse(origin: Vector2, force: float, damage: int, signal_stagger_scale: float = 1.0) -> void:
 	if dying:
 		return
+	var was_dormant := reveal_time <= 0.0
 	var push_direction := origin.direction_to(global_position)
 	if push_direction == Vector2.ZERO:
 		push_direction = Vector2.RIGHT.rotated(phase)
@@ -144,6 +145,8 @@ func receive_signal_pulse(origin: Vector2, force: float, damage: int, signal_sta
 	var dash_control := 0.14 if dash_state == DashState.DASHING else 1.0
 	var control_factor := exposure_control * resistance_control * dash_control * signal_stagger_scale
 	reveal_time = maxf(reveal_time, REVEAL_DURATION + player_exposure * 0.8)
+	if was_dormant:
+		get_parent().audio_event("wraith_wake")
 	alert_time = maxf(alert_time, lerpf(ALERT_DURATION, 4.1, player_exposure) + progress_pressure * 0.65 + panic_bonus)
 	flash_amount = 1.0
 	stagger_time = maxf(stagger_time, STAGGER_DURATION * control_factor)
@@ -172,6 +175,7 @@ func begin_trace_dash(target: Vector2) -> void:
 		return
 	dash_state = DashState.CHARGING
 	dash_timer = DASH_CHARGE_DURATION
+	get_parent().audio_event("wraith_dash")
 	flash_amount = 1.0
 	reveal_time = maxf(reveal_time, 1.1)
 	queue_redraw()
@@ -191,6 +195,7 @@ func _begin_death() -> void:
 	death_time = 0.0
 	velocity = Vector2.ZERO
 	remove_from_group("echo_wraith")
+	get_parent().audio_event("wraith_death")
 	get_parent().spawn_echo_shard(global_position)
 
 

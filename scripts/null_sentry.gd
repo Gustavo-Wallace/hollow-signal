@@ -83,7 +83,9 @@ func _update_attack_cycle(delta: float) -> void:
 			lock_target = player.global_position
 			beam_end = _get_beam_endpoint(lock_target)
 		else:
-			aim_locked = true
+			if not aim_locked:
+				aim_locked = true
+				get_parent().audio_event("sentry_lock")
 		if state_time >= lock_duration:
 			_fire_beam(player)
 	elif attack_state == AttackState.FIRE:
@@ -126,12 +128,14 @@ func _begin_lock(target: Vector2) -> void:
 	aim_locked = false
 	reveal_time = maxf(reveal_time, 1.2)
 	flash_amount = 0.65
+	get_parent().audio_event("sentry_lock")
 
 
 func _fire_beam(player: Node2D) -> void:
 	attack_state = AttackState.FIRE
 	state_time = 0.0
 	flash_amount = 1.0
+	get_parent().audio_event("sentry_fire")
 	var closest := Geometry2D.get_closest_point_to_segment(player.global_position, global_position, beam_end)
 	if player.global_position.distance_to(closest) <= BEAM_HALF_WIDTH:
 		player.call("take_damage", global_position)
@@ -188,6 +192,7 @@ func receive_signal_pulse(origin: Vector2, force: float, damage: int, signal_sta
 		state_time = 0.0
 		attack_timer = 1.2
 		flash_amount = 1.0
+		get_parent().audio_event("sentry_interrupt")
 	reveal_time = maxf(reveal_time, 2.2)
 	stagger_time = maxf(stagger_time, STAGGER_DURATION * control_factor)
 	stagger_brake = control_factor
@@ -216,6 +221,7 @@ func _begin_death() -> void:
 	velocity = Vector2.ZERO
 	remove_from_group("echo_wraith")
 	remove_from_group("null_sentry")
+	get_parent().audio_event("sentry_death")
 	if not get_parent().is_escape():
 		get_parent().spawn_echo_shard(global_position)
 	get_parent().sentry_destroyed()

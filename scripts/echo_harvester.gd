@@ -87,6 +87,7 @@ func _process_movement(delta: float) -> void:
 			if global_position.distance_to(target_shard.global_position) <= CHANNEL_DISTANCE:
 				channeling = true
 				channel_time = 0.0
+				get_parent().audio_event("wraith_wake")
 		else:
 			if global_position.distance_to(wander_target) <= 16.0:
 				wander_target = _next_wander_target()
@@ -116,6 +117,9 @@ func _process_channel(delta: float) -> void:
 		target_shard = null
 		channeling = false
 		stored_echoes = mini(2, stored_echoes + 1)
+		get_parent().audio_event("harvester_absorb")
+		if stored_echoes >= 2:
+			get_parent().audio_event("harvester_charged")
 		flash_amount = 1.0
 		reveal_time = 1.4
 		queue_redraw()
@@ -177,7 +181,10 @@ func receive_signal_pulse(origin: Vector2, force: float, damage: int, signal_sta
 	var stored_resistance := 0.72 if stored_echoes >= 2 else 1.0
 	var resistance_control := maxf(0.26, 1.0 - pulse_resistance * 0.64)
 	var control_factor := exposure_control * stored_resistance * resistance_control * signal_stagger_scale
+	var was_channeling := channeling
 	_cancel_channel(true)
+	if was_channeling:
+		get_parent().audio_event("sentry_interrupt")
 	reveal_time = maxf(reveal_time, 2.5)
 	flash_amount = 1.0
 	stagger_time = maxf(stagger_time, STAGGER_DURATION * control_factor)
@@ -209,6 +216,7 @@ func _begin_death() -> void:
 	velocity = Vector2.ZERO
 	remove_from_group("echo_wraith")
 	remove_from_group("echo_harvester")
+	get_parent().audio_event("harvester_death")
 	if not get_parent().is_escape():
 		for index in stored_echoes:
 			var direction := Vector2.RIGHT.rotated(phase + float(index) * PI)

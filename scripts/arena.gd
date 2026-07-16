@@ -65,9 +65,16 @@ func emit_pulse(origin: Vector2, charge_ratio: float) -> void:
 	pulse.position = origin
 	add_child(pulse)
 	pulse.call("configure", charge_ratio)
+	audio_event("signal", charge_ratio)
 	camera_shake_time = lerpf(0.08, 0.18, charge_ratio)
 	camera_shake_strength = lerpf(2.0, 11.0, charge_ratio)
 	_create_resonance_scar(origin, charge_ratio)
+
+
+func audio_event(kind: String, value: float = 0.0) -> void:
+	var audio := get_node_or_null("AudioDirector")
+	if audio and audio.has_method("trigger"):
+		audio.call("trigger", kind, value)
 
 
 func _create_resonance_scar(origin: Vector2, charge_ratio: float) -> void:
@@ -85,11 +92,13 @@ func _create_resonance_scar(origin: Vector2, charge_ratio: float) -> void:
 	scar.position = origin
 	add_child(scar)
 	scar.call("configure", charge_ratio, exposure_at_signal, trace_lock)
+	audio_event("scar_imprint")
 
 
 func player_damaged() -> void:
 	camera_shake_time = 0.22
 	camera_shake_strength = 13.0
+	audio_event("damage")
 
 
 func is_playing() -> bool:
@@ -154,6 +163,7 @@ func player_destroyed() -> void:
 	if not is_playing():
 		return
 	run_state = RunState.LOST
+	audio_event("death")
 	clear_trace_lock()
 	$Interface/Containment.visible = false
 	$Interface/GameOver/Title.text = "SIGNAL LOST"
@@ -175,6 +185,7 @@ func spawn_echo_shard(origin: Vector2) -> void:
 	shard.set_script(SHARD_SCRIPT)
 	shard.position = origin
 	add_child(shard)
+	audio_event("shard_spawn")
 
 
 func harvester_destroyed() -> void:
@@ -189,6 +200,7 @@ func collect_echo_shard(shard: Node2D) -> void:
 	if run_state != RunState.PLAYING:
 		return
 	echoes_collected = mini(ECHO_TARGET, echoes_collected + 1)
+	audio_event("shard_collect", float(echoes_collected))
 	_update_echo_counter()
 	shard.call("begin_collection")
 	if echoes_collected >= ECHO_TARGET:
@@ -199,6 +211,7 @@ func _begin_escape() -> void:
 	if run_state != RunState.PLAYING:
 		return
 	run_state = RunState.ESCAPE
+	audio_event("escape")
 	escape_intro_time = 0.8
 	escape_timer = 14.0
 	clear_trace_lock()
@@ -246,12 +259,15 @@ func _spawn_null_gate() -> void:
 	null_gate.set_script(NULL_GATE_SCRIPT)
 	null_gate.position = gate_position
 	add_child(null_gate)
+	audio_event("gate_open")
 
 
 func enter_null_gate() -> void:
 	if run_state != RunState.ESCAPE:
 		return
 	run_state = RunState.STABILIZED
+	audio_event("gate_enter")
+	audio_event("victory")
 	clear_trace_lock()
 	$Interface/Containment.visible = false
 	for scar in get_tree().get_nodes_in_group("resonance_scar"):
@@ -270,6 +286,7 @@ func _fail_escape() -> void:
 	if run_state != RunState.ESCAPE:
 		return
 	run_state = RunState.LOST
+	audio_event("trace_fail")
 	clear_trace_lock()
 	$Interface/Containment.visible = false
 	$Interface/GameOver/Title.text = "TRACE COMPLETE"

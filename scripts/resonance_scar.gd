@@ -12,6 +12,7 @@ var collapse_age := 0.0
 var collapsed := false
 var trace_intensity := 0.0
 var phase_offset := 0.0
+var convergence_announced := false
 
 
 func _ready() -> void:
@@ -43,6 +44,9 @@ func _process(delta: float) -> void:
 			queue_free()
 		return
 	age += delta
+	if not convergence_announced and age >= warning_duration * 0.38:
+		convergence_announced = true
+		get_parent().audio_event("scar_converge")
 	if age >= warning_duration:
 		_collapse()
 	queue_redraw()
@@ -56,6 +60,7 @@ func _collapse() -> void:
 	if collapsed:
 		return
 	collapsed = true
+	get_parent().audio_event("scar_collapse")
 	var player := get_tree().get_first_node_in_group("signal_player") as Node2D
 	if player and global_position.distance_to(player.global_position) <= radius:
 		player.call("take_damage", global_position)
