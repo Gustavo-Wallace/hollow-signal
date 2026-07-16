@@ -200,14 +200,20 @@ func _input(event: InputEvent) -> void:
 		get_tree().reload_current_scene()
 
 
-func spawn_echo_shard(origin: Vector2) -> void:
-	if run_state != RunState.PLAYING:
+func spawn_progress_echo_shard(origin: Vector2, opportunity_id: int) -> void:
+	if run_state != RunState.PLAYING or opportunity_id <= 0:
 		return
 	var shard := Node2D.new()
 	shard.set_script(SHARD_SCRIPT)
 	shard.position = origin
 	add_child(shard)
+	shard.call("configure_progress", opportunity_id)
 	audio_event("shard_spawn")
+
+
+func carrier_destroyed(origin: Vector2, opportunity_id: int, kind: String) -> void:
+	if run_state == RunState.PLAYING:
+		threat_director.call("carrier_destroyed", origin, opportunity_id, kind)
 
 
 func harvester_destroyed() -> void:
@@ -247,6 +253,9 @@ func disruption_performed(kind: String) -> void:
 func collect_echo_shard(shard: Node2D) -> void:
 	if run_state != RunState.PLAYING:
 		return
+	var opportunity_id := int(shard.get("opportunity_id"))
+	if opportunity_id <= 0 or not bool(threat_director.call("complete_opportunity", opportunity_id)):
+		return
 	echoes_collected = mini(ECHO_TARGET, echoes_collected + 1)
 	run_stats.call("record_echoes", echoes_collected)
 	audio_event("shard_collect", float(echoes_collected))
@@ -254,6 +263,18 @@ func collect_echo_shard(shard: Node2D) -> void:
 	shard.call("begin_collection")
 	if echoes_collected >= ECHO_TARGET:
 		_begin_escape()
+
+
+func progress_shard_expired(opportunity_id: int) -> void:
+	threat_director.call("opportunity_expired", opportunity_id)
+
+
+func progress_shard_stored(opportunity_id: int) -> void:
+	threat_director.call("opportunity_stored", opportunity_id)
+
+
+func progress_shard_released(opportunity_id: int) -> void:
+	threat_director.call("opportunity_released", opportunity_id)
 
 
 func _begin_escape() -> void:
@@ -331,6 +352,7 @@ func _spawn_null_pocket() -> bool:
 	null_pocket.set_script(NULL_POCKET_SCRIPT)
 	null_pocket.position = pocket_position
 	add_child(null_pocket)
+	run_stats.call("record_first_null_pocket")
 	audio_event("pocket_spawn")
 	return true
 
@@ -419,11 +441,22 @@ func _update_echo_counter() -> void:
 
 
 func spawn_directed_threat(kind: String) -> bool:
+	return spawn_threat_node(kind) != null
+
+
+func spawn_echo_carrier(kind: String, opportunity_id: int) -> Node2D:
+	var threat := spawn_threat_node(kind)
+	if threat and threat.has_method("set_echo_carrier"):
+		threat.call("set_echo_carrier", opportunity_id)
+	return threat
+
+
+func spawn_threat_node(kind: String) -> Node2D:
 	if not is_playing() or get_tree().get_nodes_in_group("echo_wraith").size() >= MAX_WRAITHS:
-		return false
+		return null
 	var spawn_position := _find_safe_threat_spawn_position()
 	if spawn_position == Vector2.ZERO:
-		return false
+		return null
 	var threat := Node2D.new()
 	match kind:
 		"harvester": threat.set_script(HARVESTER_SCRIPT)
@@ -431,10 +464,12 @@ func spawn_directed_threat(kind: String) -> bool:
 		_: threat.set_script(WRAITH_SCRIPT)
 	threat.position = spawn_position
 	add_child(threat)
+	if kind == "harvester" or kind == "sentry":
+		run_stats.call("record_first_special", kind)
 	threat.call("begin_emergence")
 	if threat.has_method("wake_for_exposure") and (exposure >= 0.34 or is_machine_panic()):
 		threat.call("wake_for_exposure", maxf(exposure, 0.5))
-	return true
+	return threat
 
 
 func _find_safe_threat_spawn_position() -> Vector2:

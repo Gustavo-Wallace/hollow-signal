@@ -34,6 +34,8 @@ var phase := 0.0
 var emergence := 1.0
 var dying := false
 var death_time := 0.0
+var is_echo_carrier := false
+var echo_opportunity_id := -1
 
 
 func _ready() -> void:
@@ -224,6 +226,13 @@ func wake_for_exposure(exposure_level: float) -> void:
 	reveal_time = lerpf(0.5, 1.3, exposure_level)
 
 
+func set_echo_carrier(opportunity_id: int) -> void:
+	is_echo_carrier = true
+	echo_opportunity_id = opportunity_id
+	reveal_time = maxf(reveal_time, 1.5)
+	flash_amount = 0.5
+
+
 func _begin_death() -> void:
 	dying = true
 	attack_state = AttackState.RECOVER
@@ -231,8 +240,8 @@ func _begin_death() -> void:
 	remove_from_group("echo_wraith")
 	remove_from_group("null_sentry")
 	get_parent().audio_event("sentry_death")
-	if not get_parent().is_escape():
-		get_parent().spawn_echo_shard(global_position)
+	if not get_parent().is_escape() and is_echo_carrier:
+		get_parent().carrier_destroyed(global_position, echo_opportunity_id, "sentry")
 	get_parent().sentry_destroyed()
 
 
@@ -255,6 +264,10 @@ func _draw() -> void:
 	draw_arc(Vector2.ZERO, 25.0 + pulse * 2.0, 2.2, 3.75, 24, Color(0.34, 0.86, 1.0, alpha), 1.4, true)
 	draw_arc(Vector2.ZERO, 25.0 + pulse * 2.0, 4.3, 5.85, 24, Color(0.34, 0.86, 1.0, alpha), 1.4, true)
 	draw_circle(Vector2.ZERO, 4.2 + flash_amount * 1.8, Color(0.64, 0.97, 1.0, eye_alpha))
+	if is_echo_carrier:
+		var carrier_angle := Time.get_ticks_msec() * 0.0016 + phase
+		draw_circle(Vector2.RIGHT.rotated(carrier_angle) * 34.0, 3.2, Color(0.62, 0.97, 1.0, 0.88))
+		draw_arc(Vector2.ZERO, 35.0, carrier_angle, carrier_angle + 1.55, 22, Color(0.5, 0.9, 1.0, alpha * 0.8), 1.3, true)
 	for angle in [0.0, PI * 0.5, PI, PI * 1.5]:
 		var direction := Vector2.RIGHT.rotated(angle + phase)
 		draw_line(direction * 29.0, direction * 38.0, Color(0.4, 0.9, 1.0, alpha * 0.72), 1.2, true)

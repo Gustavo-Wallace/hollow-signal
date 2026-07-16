@@ -11,6 +11,7 @@ var collection_time := 0.0
 var lifetime := 0.0
 var expiring := false
 var expire_time := 0.0
+var opportunity_id := -1
 
 
 func _ready() -> void:
@@ -36,6 +37,8 @@ func _process(delta: float) -> void:
 	lifetime += delta
 	if lifetime >= LIFETIME:
 		get_parent().shard_expired()
+		if opportunity_id > 0:
+			get_parent().progress_shard_expired(opportunity_id)
 		queue_free()
 		return
 	phase += delta * 2.2
@@ -51,6 +54,10 @@ func begin_collection() -> void:
 	collected = true
 	remove_from_group("echo_shard")
 	queue_redraw()
+
+
+func configure_progress(id: int) -> void:
+	opportunity_id = id
 
 
 func expire() -> void:

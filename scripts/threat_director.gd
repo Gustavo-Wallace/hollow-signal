@@ -23,6 +23,11 @@ var pocket_request_cooldown := 7.0
 var time_since_damage := 0.0
 var recent_kills := 0.0
 var debug_visible := false
+var opportunity_id := 0
+var opportunity_state := "cooldown"
+var opportunity_timer := 8.0
+var opportunity_carrier: Node2D
+var opportunity_kind := "basic"
 
 
 func _ready() -> void:
@@ -37,6 +42,7 @@ func tick(delta: float) -> void:
 	_update_phase(arena)
 	_update_pressure(arena, delta)
 	if phase == Phase.ESCAPE:
+		opportunity_state = "inactive"
 		_tick_escape(arena)
 	else:
 		_tick_normal_run(arena, delta)
@@ -87,6 +93,8 @@ func _update_timers(delta: float) -> void:
 	pocket_request_cooldown = maxf(0.0, pocket_request_cooldown - delta)
 	time_since_damage += delta
 	recent_kills = maxf(0.0, recent_kills - delta * 0.22)
+	if opportunity_state == "cooldown":
+		opportunity_timer = maxf(0.0, opportunity_timer - delta)
 
 
 func _update_phase(arena: Node) -> void:
@@ -138,6 +146,7 @@ func _tick_normal_run(arena: Node, delta: float) -> void:
 	if cycle != Cycle.RELEASE and recovery_time <= 0.0 and spawn_interval <= 0.0 and overload < 7.4:
 		_try_spawn(arena)
 	_request_null_pocket_if_needed(arena, overload)
+	_update_echo_opportunity(arena, overload)
 
 
 func _tick_escape(arena: Node) -> void:
@@ -242,6 +251,83 @@ func _request_null_pocket_if_needed(arena: Node, overload: float) -> void:
 		pocket_request_cooldown = 12.0
 
 
+func _update_echo_opportunity(arena: Node, overload: float) -> void:
+	if opportunity_state != "cooldown" or opportunity_timer > 0.0:
+		return
+	if cycle == Cycle.RELEASE or recovery_time > 0.0 or overload > 5.8:
+		return
+	opportunity_id += 1
+	opportunity_kind = _choose_carrier_kind(arena)
+	var carrier: Node2D = null
+	if get_tree().get_nodes_in_group("echo_wraith").size() >= _living_limit():
+		for enemy in get_tree().get_nodes_in_group("echo_wraith"):
+			if enemy is Node2D and not bool(enemy.get("is_echo_carrier")) and enemy.has_method("set_echo_carrier"):
+				carrier = enemy
+				opportunity_kind = "basic"
+				carrier.call("set_echo_carrier", opportunity_id)
+				break
+	else:
+		carrier = arena.call("spawn_echo_carrier", opportunity_kind, opportunity_id) as Node2D
+	if carrier == null:
+		opportunity_timer = 1.5
+		return
+	opportunity_carrier = carrier
+	opportunity_state = "carrier"
+	arena.get_node("RunStats").call("record_echo_carrier_spawned")
+	arena.call("_show_status_message", "ECHO SIGNATURE DETECTED", 0.8)
+
+
+func _choose_carrier_kind(arena: Node) -> String:
+	var echoes := int(arena.get("echoes_collected"))
+	if echoes <= 1:
+		return "basic"
+	if echoes <= 3:
+		return "harvester" if echoes >= 3 and get_tree().get_nodes_in_group("echo_harvester").is_empty() else "basic"
+	if echoes <= 5:
+		if get_tree().get_nodes_in_group("null_sentry").is_empty():
+			return "sentry"
+		if get_tree().get_nodes_in_group("echo_harvester").is_empty() and randf() < 0.45:
+			return "harvester"
+	return "sentry" if get_tree().get_nodes_in_group("null_sentry").is_empty() and randf() < 0.5 else "basic"
+
+
+func carrier_destroyed(origin: Vector2, id: int, _kind: String) -> void:
+	if opportunity_state != "carrier" or id != opportunity_id:
+		return
+	opportunity_carrier = null
+	opportunity_state = "shard"
+	get_parent().spawn_progress_echo_shard(origin, id)
+	get_parent().get_node("RunStats").call("record_echo_carrier_destroyed")
+
+
+func complete_opportunity(id: int) -> bool:
+	if opportunity_state not in ["shard", "stored"] or id != opportunity_id:
+		return false
+	opportunity_state = "cooldown"
+	opportunity_timer = randf_range(9.0, 12.5)
+	get_parent().get_node("RunStats").call("record_echo_opportunity_completed")
+	return true
+
+
+func opportunity_expired(id: int) -> void:
+	if id != opportunity_id or opportunity_state != "shard":
+		return
+	opportunity_state = "cooldown"
+	opportunity_timer = randf_range(3.5, 5.5)
+	get_parent().get_node("RunStats").call("record_echo_opportunity_expired")
+
+
+func opportunity_stored(id: int) -> void:
+	if id == opportunity_id and opportunity_state == "shard":
+		opportunity_state = "stored"
+		get_parent().get_node("RunStats").call("record_echo_opportunity_recovered")
+
+
+func opportunity_released(id: int) -> void:
+	if id == opportunity_id and opportunity_state == "stored":
+		opportunity_state = "shard"
+
+
 func _update_debug(arena: Node) -> void:
 	var label := arena.get_node_or_null("Interface/DirectorDebug") as Label
 	if label == null:
@@ -256,7 +342,7 @@ func _update_debug(arena: Node) -> void:
 		var trace := float(player.get("trace_value")) if player else 0.0
 		var charge_profile := String(player.call("get_charge_profile")) if player else "quick"
 		var recovery := float(player.get("pulse_cooldown")) if player else 0.0
-		label.text = "DIRECTOR  %s / %s\nBUDGET %.1f  INTENSITY %.2f\nENEMIES %d  %s\nEXPOSURE %d%% %s  SATURATED %s\nTRACE %.2f  CHARGE %s  RECOVERY %.2f" % [_phase_name(), _cycle_name(), threat_budget, director_intensity, get_tree().get_nodes_in_group("echo_wraith").size(), state, int(exposure * 100.0), band, "YES" if saturated else "NO", trace, charge_profile.to_upper(), recovery]
+		label.text = "DIRECTOR  %s / %s\nBUDGET %.1f  INTENSITY %.2f\nENEMIES %d  %s\nEXPOSURE %d%% %s  SATURATED %s\nTRACE %.2f  CHARGE %s  RECOVERY %.2f\nECHO %s #%d %s  NEXT %.1f" % [_phase_name(), _cycle_name(), threat_budget, director_intensity, get_tree().get_nodes_in_group("echo_wraith").size(), state, int(exposure * 100.0), band, "YES" if saturated else "NO", trace, charge_profile.to_upper(), recovery, opportunity_state.to_upper(), opportunity_id, opportunity_kind.to_upper(), opportunity_timer]
 
 
 func _phase_name() -> String:

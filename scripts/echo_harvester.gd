@@ -31,6 +31,9 @@ var dying := false
 var death_time := 0.0
 var wander_target := Vector2.ZERO
 var last_player_position := Vector2.ZERO
+var stored_opportunity_ids: Array[int] = []
+var is_echo_carrier := false
+var echo_opportunity_id := -1
 
 
 func _ready() -> void:
@@ -119,11 +122,15 @@ func _process_channel(delta: float) -> void:
 	var pull_strength := clampf(channel_time / channel_duration, 0.0, 1.0)
 	target_shard.global_position = target_shard.global_position.lerp(global_position, delta * (0.5 + pull_strength * 1.5))
 	if channel_time >= channel_duration:
+		var stored_id := int(target_shard.get("opportunity_id"))
 		get_parent().shard_intercepted()
 		target_shard.queue_free()
 		target_shard = null
 		channeling = false
 		stored_echoes = mini(2, stored_echoes + 1)
+		if stored_id > 0:
+			stored_opportunity_ids.append(stored_id)
+			get_parent().progress_shard_stored(stored_id)
 		get_parent().audio_event("harvester_absorb")
 		if stored_echoes >= 2:
 			get_parent().audio_event("harvester_charged")
@@ -219,6 +226,13 @@ func wake_for_exposure(exposure_level: float) -> void:
 	queue_redraw()
 
 
+func set_echo_carrier(opportunity_id: int) -> void:
+	is_echo_carrier = true
+	echo_opportunity_id = opportunity_id
+	reveal_time = maxf(reveal_time, 1.6)
+	flash_amount = 0.45
+
+
 func _begin_death() -> void:
 	dying = true
 	death_time = 0.0
@@ -227,9 +241,13 @@ func _begin_death() -> void:
 	remove_from_group("echo_harvester")
 	get_parent().audio_event("harvester_death")
 	if not get_parent().is_escape():
-		for index in stored_echoes:
+		for index in stored_opportunity_ids.size():
 			var direction := Vector2.RIGHT.rotated(phase + float(index) * PI)
-			get_parent().spawn_echo_shard(global_position + direction * 19.0)
+			var released_id := stored_opportunity_ids[index]
+			get_parent().spawn_progress_echo_shard(global_position + direction * 19.0, released_id)
+			get_parent().progress_shard_released(released_id)
+		if is_echo_carrier:
+			get_parent().carrier_destroyed(global_position, echo_opportunity_id, "harvester")
 	get_parent().harvester_destroyed()
 
 
@@ -253,6 +271,10 @@ func _draw() -> void:
 	draw_arc(Vector2.ZERO, 16.0 + pulse * 2.0, 0.35, PI - 0.35, 28, Color(0.35, 0.9, 1.0, core_alpha), 1.2, true)
 	draw_arc(Vector2.ZERO, 16.0 + pulse * 2.0, PI + 0.35, TAU - 0.35, 28, Color(0.35, 0.9, 1.0, core_alpha), 1.2, true)
 	draw_circle(Vector2.ZERO, 3.5 + flash_amount * 1.6, Color(0.58, 0.96, 1.0, core_alpha))
+	if is_echo_carrier:
+		var carrier_angle := Time.get_ticks_msec() * 0.0017 + phase
+		draw_circle(Vector2.RIGHT.rotated(carrier_angle) * 31.0, 3.2, Color(0.6, 0.97, 1.0, 0.88))
+		draw_arc(Vector2.ZERO, 33.0, carrier_angle, carrier_angle + 1.45, 22, Color(0.48, 0.9, 1.0, alpha * 0.76), 1.3, true)
 	if channeling and _valid_target_shard():
 		var local_target := to_local(target_shard.global_position)
 		var channel_alpha := alpha * (0.45 + sin(Time.get_ticks_msec() * 0.014) * 0.2)

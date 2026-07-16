@@ -34,6 +34,8 @@ var resistance_hold := 0.0
 var dash_state := DashState.NONE
 var dash_timer := 0.0
 var dash_direction := Vector2.RIGHT
+var is_echo_carrier := false
+var echo_opportunity_id := -1
 
 
 func _ready() -> void:
@@ -202,6 +204,13 @@ func wake_for_exposure(exposure_level: float) -> void:
 	queue_redraw()
 
 
+func set_echo_carrier(opportunity_id: int) -> void:
+	is_echo_carrier = true
+	echo_opportunity_id = opportunity_id
+	reveal_time = maxf(reveal_time, 1.5)
+	queue_redraw()
+
+
 func _begin_death() -> void:
 	dying = true
 	death_time = 0.0
@@ -210,7 +219,8 @@ func _begin_death() -> void:
 	get_parent().audio_event("wraith_death")
 	get_parent().basic_enemy_destroyed()
 	get_parent().get_node("ThreatDirector").call("note_threat_defeated", "basic")
-	get_parent().spawn_echo_shard(global_position)
+	if is_echo_carrier:
+		get_parent().carrier_destroyed(global_position, echo_opportunity_id, "basic")
 
 
 func _process_death(delta: float) -> void:
@@ -238,6 +248,11 @@ func _draw() -> void:
 	draw_arc(Vector2.ZERO, 24.0 + pulse * 2.0, 0.18, 2.25, 24, Color(0.3, 0.9, 1.0, glow_alpha), 1.3, true)
 	draw_arc(Vector2.ZERO, 24.0 + pulse * 2.0, 3.35, 5.48, 24, Color(0.3, 0.9, 1.0, glow_alpha), 1.3, true)
 	draw_circle(Vector2.ZERO, 3.4 + flash_amount * 1.8, Color(0.62, 0.96, 1.0, alpha * (0.52 + flash_amount * 0.48)))
+	if is_echo_carrier:
+		var carrier_angle := Time.get_ticks_msec() * 0.002 + phase
+		var carrier_orbit := Vector2.RIGHT.rotated(carrier_angle) * 27.0
+		draw_circle(carrier_orbit, 3.0, Color(0.56, 0.96, 1.0, 0.9))
+		draw_arc(Vector2.ZERO, 29.0, carrier_angle, carrier_angle + 1.6, 20, Color(0.45, 0.88, 1.0, alpha * 0.78), 1.2, true)
 	if stagger_time > 0.0:
 		var stagger_progress := 1.0 - stagger_time / STAGGER_DURATION
 		var stagger_alpha := stagger_flash * alpha

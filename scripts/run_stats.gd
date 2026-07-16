@@ -27,7 +27,7 @@ func _process(delta: float) -> void:
 
 
 func reset() -> void:
-	stats = {"run_time": 0.0, "echoes_collected": 0, "quick_signals": 0, "resonant_signals": 0, "break_signals": 0, "damage_taken": 0, "max_exposure": 0.0, "time_at_critical_exposure": 0.0, "time_core_saturated": 0.0, "break_attempts_blocked": 0, "disruptions_performed": 0, "sentry_locks_interrupted": 0, "harvester_channels_interrupted": 0, "trace_locks_triggered": 0, "null_pockets_used": 0, "enemies_destroyed": 0, "basic_enemies_destroyed": 0, "harvesters_destroyed": 0, "sentries_destroyed": 0, "shards_intercepted": 0, "shards_expired": 0, "resonance_scar_hits": 0, "sentry_hits": 0, "contact_hits": 0, "escape_started_at": -1.0, "escape_duration": 0.0, "escape_time_remaining": 0.0, "null_gate_distance_initial": 0.0, "outcome": "", "end_reason": ""}
+	stats = {"run_time": 0.0, "echoes_collected": 0, "echo_times": [], "average_time_per_echo": 0.0, "longest_time_between_echoes": 0.0, "pre_escape_duration": 0.0, "first_sentry_time": -1.0, "first_harvester_time": -1.0, "first_null_pocket_time": -1.0, "quick_signals": 0, "resonant_signals": 0, "break_signals": 0, "damage_taken": 0, "max_exposure": 0.0, "time_at_critical_exposure": 0.0, "time_core_saturated": 0.0, "break_attempts_blocked": 0, "disruptions_performed": 0, "sentry_locks_interrupted": 0, "harvester_channels_interrupted": 0, "echo_carriers_spawned": 0, "echo_carriers_destroyed": 0, "echo_opportunities_completed": 0, "echo_opportunities_expired": 0, "echo_opportunities_recovered_from_harvester": 0, "trace_locks_triggered": 0, "null_pockets_used": 0, "enemies_destroyed": 0, "basic_enemies_destroyed": 0, "harvesters_destroyed": 0, "sentries_destroyed": 0, "shards_intercepted": 0, "shards_expired": 0, "resonance_scar_hits": 0, "sentry_hits": 0, "contact_hits": 0, "escape_started_at": -1.0, "escape_duration": 0.0, "escape_time_remaining": 0.0, "null_gate_distance_initial": 0.0, "outcome": "", "end_reason": ""}
 	finalized = false
 	summary_delay = -1.0
 	summary_fade = 0.0
@@ -60,6 +60,12 @@ func record_signal(signal_profile: String) -> void:
 
 func record_echoes(total: int) -> void:
 	if not finalized:
+		if total > int(stats["echoes_collected"]):
+			var echo_times: Array = stats["echo_times"]
+			var previous: float = float(echo_times[echo_times.size() - 1]) if not echo_times.is_empty() else 0.0
+			echo_times.append(float(stats["run_time"]))
+			stats["longest_time_between_echoes"] = maxf(float(stats["longest_time_between_echoes"]), float(stats["run_time"]) - previous)
+			stats["average_time_per_echo"] = float(stats["run_time"]) / float(total)
 		stats["echoes_collected"] = mini(8, total)
 
 
@@ -93,6 +99,26 @@ func record_disruption(kind: String) -> void:
 		_increment("harvester_channels_interrupted")
 
 
+func record_echo_carrier_spawned() -> void:
+	_increment("echo_carriers_spawned")
+
+
+func record_echo_carrier_destroyed() -> void:
+	_increment("echo_carriers_destroyed")
+
+
+func record_echo_opportunity_completed() -> void:
+	_increment("echo_opportunities_completed")
+
+
+func record_echo_opportunity_expired() -> void:
+	_increment("echo_opportunities_expired")
+
+
+func record_echo_opportunity_recovered() -> void:
+	_increment("echo_opportunities_recovered_from_harvester")
+
+
 func record_null_pocket_used() -> void:
 	if not finalized:
 		_increment("null_pockets_used")
@@ -121,6 +147,18 @@ func record_shard_expired() -> void:
 func begin_escape() -> void:
 	if not finalized and float(stats["escape_started_at"]) < 0.0:
 		stats["escape_started_at"] = stats["run_time"]
+		stats["pre_escape_duration"] = stats["run_time"]
+
+
+func record_first_special(kind: String) -> void:
+	var key := "first_sentry_time" if kind == "sentry" else "first_harvester_time"
+	if float(stats[key]) < 0.0:
+		stats[key] = stats["run_time"]
+
+
+func record_first_null_pocket() -> void:
+	if float(stats["first_null_pocket_time"]) < 0.0:
+		stats["first_null_pocket_time"] = stats["run_time"]
 
 
 func set_null_gate_distance(distance: float) -> void:
