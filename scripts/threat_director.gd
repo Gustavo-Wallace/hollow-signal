@@ -249,7 +249,14 @@ func _update_debug(arena: Node) -> void:
 	label.visible = debug_visible
 	if debug_visible:
 		var state := "RECOVERY %.1f" % recovery_time if recovery_time > 0.0 else "ACTIVE"
-		label.text = "DIRECTOR  %s / %s\nBUDGET %.1f  INTENSITY %.2f\nENEMIES %d  %s" % [_phase_name(), _cycle_name(), threat_budget, director_intensity, get_tree().get_nodes_in_group("echo_wraith").size(), state]
+		var player := get_tree().get_first_node_in_group("signal_player")
+		var exposure := float(player.call("get_exposure")) if player else 0.0
+		var band := "CRITICAL" if exposure >= 0.7 else ("RISING" if exposure >= 0.35 else "LOW")
+		var saturated := bool(player.get("core_saturated")) if player else false
+		var trace := float(player.get("trace_value")) if player else 0.0
+		var charge_profile := String(player.call("get_charge_profile")) if player else "quick"
+		var recovery := float(player.get("pulse_cooldown")) if player else 0.0
+		label.text = "DIRECTOR  %s / %s\nBUDGET %.1f  INTENSITY %.2f\nENEMIES %d  %s\nEXPOSURE %d%% %s  SATURATED %s\nTRACE %.2f  CHARGE %s  RECOVERY %.2f" % [_phase_name(), _cycle_name(), threat_budget, director_intensity, get_tree().get_nodes_in_group("echo_wraith").size(), state, int(exposure * 100.0), band, "YES" if saturated else "NO", trace, charge_profile.to_upper(), recovery]
 
 
 func _phase_name() -> String:

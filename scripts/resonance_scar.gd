@@ -13,6 +13,7 @@ var collapsed := false
 var trace_intensity := 0.0
 var phase_offset := 0.0
 var convergence_announced := false
+var weak_scar := false
 
 
 func _ready() -> void:
@@ -22,14 +23,17 @@ func _ready() -> void:
 	queue_redraw()
 
 
-func configure(charge: float, exposure: float, trace_locked: bool) -> void:
+func configure(charge: float, exposure: float, trace_locked: bool, is_weak: bool = false) -> void:
+	weak_scar = is_weak
 	charge_ratio = clampf(charge, 0.35, 1.0)
 	var normalized_charge := inverse_lerp(0.35, 1.0, charge_ratio)
 	radius = lerpf(MIN_RADIUS, MAX_RADIUS, normalized_charge)
+	if weak_scar:
+		radius = minf(64.0, radius)
 	if trace_locked:
 		radius += 8.0
 	trace_intensity = 1.0 if trace_locked else 0.0
-	warning_duration = lerpf(1.7, 1.25, clampf(exposure, 0.0, 1.0))
+	warning_duration = lerpf(1.7, 1.25, clampf(exposure, 0.0, 1.0)) + (0.28 if weak_scar else 0.0)
 	queue_redraw()
 
 

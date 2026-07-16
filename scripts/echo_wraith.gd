@@ -130,9 +130,15 @@ func _process_trace_dash(delta: float) -> bool:
 	return true
 
 
-func receive_signal_pulse(origin: Vector2, force: float, damage: int, signal_stagger_scale: float = 1.0) -> void:
+func receive_signal_pulse(origin: Vector2, force: float, damage: int, signal_stagger_scale: float = 1.0, signal_profile: String = "resonant") -> void:
 	if dying:
 		return
+	if signal_profile == "quick" and dash_state == DashState.CHARGING:
+		dash_state = DashState.RECOVERING
+		dash_timer = DASH_RECOVERY_DURATION * 0.55
+		velocity = Vector2.ZERO
+		flash_amount = 1.0
+		get_parent().disruption_performed("basic")
 	var was_dormant := reveal_time <= 0.0
 	var push_direction := origin.direction_to(global_position)
 	if push_direction == Vector2.ZERO:

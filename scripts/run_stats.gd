@@ -27,7 +27,7 @@ func _process(delta: float) -> void:
 
 
 func reset() -> void:
-	stats = {"run_time": 0.0, "echoes_collected": 0, "quick_signals": 0, "resonant_signals": 0, "break_signals": 0, "damage_taken": 0, "max_exposure": 0.0, "trace_locks_triggered": 0, "null_pockets_used": 0, "enemies_destroyed": 0, "basic_enemies_destroyed": 0, "harvesters_destroyed": 0, "sentries_destroyed": 0, "shards_intercepted": 0, "shards_expired": 0, "resonance_scar_hits": 0, "sentry_hits": 0, "contact_hits": 0, "escape_started_at": -1.0, "escape_duration": 0.0, "escape_time_remaining": 0.0, "null_gate_distance_initial": 0.0, "outcome": "", "end_reason": ""}
+	stats = {"run_time": 0.0, "echoes_collected": 0, "quick_signals": 0, "resonant_signals": 0, "break_signals": 0, "damage_taken": 0, "max_exposure": 0.0, "time_at_critical_exposure": 0.0, "time_core_saturated": 0.0, "break_attempts_blocked": 0, "disruptions_performed": 0, "sentry_locks_interrupted": 0, "harvester_channels_interrupted": 0, "trace_locks_triggered": 0, "null_pockets_used": 0, "enemies_destroyed": 0, "basic_enemies_destroyed": 0, "harvesters_destroyed": 0, "sentries_destroyed": 0, "shards_intercepted": 0, "shards_expired": 0, "resonance_scar_hits": 0, "sentry_hits": 0, "contact_hits": 0, "escape_started_at": -1.0, "escape_duration": 0.0, "escape_time_remaining": 0.0, "null_gate_distance_initial": 0.0, "outcome": "", "end_reason": ""}
 	finalized = false
 	summary_delay = -1.0
 	summary_fade = 0.0
@@ -36,19 +36,23 @@ func reset() -> void:
 		summary.visible = false
 
 
-func tick(delta: float, exposure: float) -> void:
+func tick(delta: float, exposure: float, core_saturated: bool = false) -> void:
 	if finalized:
 		return
 	stats["run_time"] = float(stats["run_time"]) + delta
 	stats["max_exposure"] = maxf(float(stats["max_exposure"]), exposure)
+	if exposure >= 0.7:
+		stats["time_at_critical_exposure"] = float(stats["time_at_critical_exposure"]) + delta
+	if core_saturated:
+		stats["time_core_saturated"] = float(stats["time_core_saturated"]) + delta
 
 
-func record_signal(charge_ratio: float) -> void:
+func record_signal(signal_profile: String) -> void:
 	if finalized:
 		return
-	if charge_ratio < 0.35:
+	if signal_profile == "quick":
 		_increment("quick_signals")
-	elif charge_ratio < 0.75:
+	elif signal_profile == "resonant":
 		_increment("resonant_signals")
 	else:
 		_increment("break_signals")
@@ -72,6 +76,21 @@ func record_damage(source_type: String, amount: int = 1) -> void:
 func record_trace_lock() -> void:
 	if not finalized:
 		_increment("trace_locks_triggered")
+
+
+func record_break_blocked() -> void:
+	if not finalized:
+		_increment("break_attempts_blocked")
+
+
+func record_disruption(kind: String) -> void:
+	if finalized:
+		return
+	_increment("disruptions_performed")
+	if kind == "sentry":
+		_increment("sentry_locks_interrupted")
+	elif kind == "harvester":
+		_increment("harvester_channels_interrupted")
 
 
 func record_null_pocket_used() -> void:

@@ -172,7 +172,7 @@ func begin_escape_mode() -> void:
 	flash_amount = 0.55
 
 
-func receive_signal_pulse(origin: Vector2, force: float, damage: int, signal_stagger_scale: float = 1.0) -> void:
+func receive_signal_pulse(origin: Vector2, force: float, damage: int, signal_stagger_scale: float = 1.0, signal_profile: String = "resonant") -> void:
 	if dying:
 		return
 	var push_direction := origin.direction_to(global_position)
@@ -192,6 +192,8 @@ func receive_signal_pulse(origin: Vector2, force: float, damage: int, signal_sta
 	_cancel_channel(true)
 	if was_channeling:
 		get_parent().audio_event("sentry_interrupt")
+		if signal_profile == "quick":
+			get_parent().disruption_performed("harvester")
 	reveal_time = maxf(reveal_time, 2.5)
 	flash_amount = 1.0
 	stagger_time = maxf(stagger_time, STAGGER_DURATION * control_factor)

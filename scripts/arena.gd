@@ -47,7 +47,9 @@ func _process(delta: float) -> void:
 	_update_exposure()
 	if is_playing():
 		elapsed_time += delta
-		run_stats.call("tick", delta, exposure)
+		var player_for_stats := get_tree().get_first_node_in_group("signal_player")
+		var saturated := player_for_stats != null and bool(player_for_stats.get("core_saturated"))
+		run_stats.call("tick", delta, exposure, saturated)
 		_update_trace_lock(delta)
 		_update_escape_state(delta)
 		threat_director.call("tick", delta)
@@ -57,19 +59,19 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
-func emit_pulse(origin: Vector2, charge_ratio: float) -> void:
+func emit_pulse(origin: Vector2, signal_profile: String, charge_ratio: float) -> void:
 	if not is_playing():
 		return
 	var pulse := Node2D.new()
 	pulse.set_script(PULSE_SCRIPT)
 	pulse.position = origin
 	add_child(pulse)
-	pulse.call("configure", charge_ratio)
-	run_stats.call("record_signal", charge_ratio)
-	audio_event("signal", charge_ratio)
+	pulse.call("configure", signal_profile)
+	run_stats.call("record_signal", signal_profile)
+	audio_event("signal_%s" % signal_profile, charge_ratio)
 	camera_shake_time = lerpf(0.08, 0.18, charge_ratio)
 	camera_shake_strength = lerpf(2.0, 11.0, charge_ratio)
-	_create_resonance_scar(origin, charge_ratio)
+	_create_resonance_scar(origin, signal_profile, charge_ratio)
 
 
 func audio_event(kind: String, value: float = 0.0) -> void:
@@ -78,8 +80,10 @@ func audio_event(kind: String, value: float = 0.0) -> void:
 		audio.call("trigger", kind, value)
 
 
-func _create_resonance_scar(origin: Vector2, charge_ratio: float) -> void:
-	if charge_ratio < 0.35:
+func _create_resonance_scar(origin: Vector2, signal_profile: String, charge_ratio: float) -> void:
+	if signal_profile == "quick":
+		return
+	if signal_profile == "resonant" and exposure < 0.7:
 		return
 	var active_scars := get_tree().get_nodes_in_group("resonance_scar")
 	if active_scars.size() >= 3:
@@ -92,7 +96,8 @@ func _create_resonance_scar(origin: Vector2, charge_ratio: float) -> void:
 	scar.set_script(SCAR_SCRIPT)
 	scar.position = origin
 	add_child(scar)
-	scar.call("configure", charge_ratio, exposure_at_signal, trace_lock)
+	var weak_scar := signal_profile == "resonant"
+	scar.call("configure", charge_ratio, exposure_at_signal, trace_lock, weak_scar)
 	audio_event("scar_imprint")
 
 
@@ -229,6 +234,14 @@ func shard_expired() -> void:
 
 func null_pocket_used() -> void:
 	run_stats.call("record_null_pocket_used")
+
+
+func break_attempt_blocked() -> void:
+	run_stats.call("record_break_blocked")
+
+
+func disruption_performed(kind: String) -> void:
+	run_stats.call("record_disruption", kind)
 
 
 func collect_echo_shard(shard: Node2D) -> void:

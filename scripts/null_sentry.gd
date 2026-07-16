@@ -179,7 +179,7 @@ func _get_beam_endpoint(target: Vector2) -> Vector2:
 	return global_position + direction * distance_to_edge
 
 
-func receive_signal_pulse(origin: Vector2, force: float, damage: int, signal_stagger_scale: float = 1.0) -> void:
+func receive_signal_pulse(origin: Vector2, force: float, damage: int, signal_stagger_scale: float = 1.0, signal_profile: String = "resonant") -> void:
 	if dying:
 		return
 	var push_direction := origin.direction_to(global_position)
@@ -200,6 +200,8 @@ func receive_signal_pulse(origin: Vector2, force: float, damage: int, signal_sta
 		attack_timer = 1.2
 		flash_amount = 1.0
 		get_parent().audio_event("sentry_interrupt")
+		if signal_profile == "quick":
+			get_parent().disruption_performed("sentry")
 	reveal_time = maxf(reveal_time, 2.2)
 	stagger_time = maxf(stagger_time, STAGGER_DURATION * control_factor)
 	stagger_brake = control_factor

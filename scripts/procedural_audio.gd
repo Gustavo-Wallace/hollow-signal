@@ -66,13 +66,9 @@ func trigger(kind: String, value: float = 0.0) -> void:
 	if run_finished and kind not in ["restart", "summary"]:
 		return
 	match kind:
-		"signal":
-			if value < 0.35:
-				_play("signal_quick", lerpf(0.94, 1.12, value), -8.0)
-			elif value < 0.75:
-				_play("signal_resonant", lerpf(0.92, 1.08, value), -6.5)
-			else:
-				_play("signal_break", lerpf(0.88, 1.04, value), -4.5)
+		"signal_quick": _play("signal_quick", lerpf(0.94, 1.08, value), -10.0)
+		"signal_resonant": _play("signal_resonant", lerpf(0.94, 1.08, value), -6.5)
+		"signal_break": _play("signal_break", lerpf(0.9, 1.04, value), -4.5)
 		"damage": _play("damage", 0.94 + randf() * 0.1, -5.0)
 		"death":
 			run_finished = true
