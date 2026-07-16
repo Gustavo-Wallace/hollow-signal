@@ -43,13 +43,16 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
-func emit_pulse(origin: Vector2) -> void:
+func emit_pulse(origin: Vector2, charge_ratio: float) -> void:
+	if not is_playing():
+		return
 	var pulse := Node2D.new()
 	pulse.set_script(PULSE_SCRIPT)
 	pulse.position = origin
 	add_child(pulse)
-	camera_shake_time = 0.15
-	camera_shake_strength = 7.0
+	pulse.call("configure", charge_ratio)
+	camera_shake_time = lerpf(0.08, 0.18, charge_ratio)
+	camera_shake_strength = lerpf(2.0, 11.0, charge_ratio)
 
 
 func player_damaged() -> void:

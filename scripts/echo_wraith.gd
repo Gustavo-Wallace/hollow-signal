@@ -124,7 +124,7 @@ func _process_trace_dash(delta: float) -> bool:
 	return true
 
 
-func receive_signal_pulse(origin: Vector2, force: float, damage: int) -> void:
+func receive_signal_pulse(origin: Vector2, force: float, damage: int, signal_stagger_scale: float = 1.0) -> void:
 	if dying:
 		return
 	var push_direction := origin.direction_to(global_position)
@@ -142,7 +142,7 @@ func receive_signal_pulse(origin: Vector2, force: float, damage: int) -> void:
 		exposure_control = 0.72
 	var resistance_control := maxf(0.18, 1.0 - pulse_resistance * 0.74)
 	var dash_control := 0.14 if dash_state == DashState.DASHING else 1.0
-	var control_factor := exposure_control * resistance_control * dash_control
+	var control_factor := exposure_control * resistance_control * dash_control * signal_stagger_scale
 	reveal_time = maxf(reveal_time, REVEAL_DURATION + player_exposure * 0.8)
 	alert_time = maxf(alert_time, lerpf(ALERT_DURATION, 4.1, player_exposure) + progress_pressure * 0.65 + panic_bonus)
 	flash_amount = 1.0
