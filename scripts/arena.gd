@@ -21,21 +21,17 @@ var camera_shake_strength := 0.0
 var exposure := 0.0
 var run_state := RunState.PLAYING
 var echoes_collected := 0
-var spawn_timer := 3.2
 var elapsed_time := 0.0
 var trace_lock := false
 var trace_position := Vector2.ZERO
 var trace_dash_timer := 0.0
-var harvester_spawn_cooldown := 0.0
-var sentry_spawn_cooldown := 0.0
 var escape_timer := 14.0
 var escape_intro_time := 0.0
 var null_gate: Node2D
 var null_pocket: Node2D
-var null_pocket_spawn_timer := 18.0
-var null_pocket_cooldown := 0.0
 var status_message_time := 0.0
 @onready var arena_camera: Camera2D = $ArenaCamera
+@onready var threat_director: Node = $ThreatDirector
 
 
 func _ready() -> void:
@@ -50,12 +46,9 @@ func _process(delta: float) -> void:
 	_update_exposure()
 	if is_playing():
 		elapsed_time += delta
-		harvester_spawn_cooldown = maxf(0.0, harvester_spawn_cooldown - delta)
-		sentry_spawn_cooldown = maxf(0.0, sentry_spawn_cooldown - delta)
-		_update_threat_spawner(delta)
 		_update_trace_lock(delta)
 		_update_escape_state(delta)
-		_update_null_pocket(delta)
+		threat_director.call("tick", delta)
 	_update_camera_shake(delta)
 	_update_final_echo_pulse()
 	_update_status_message(delta)
@@ -104,6 +97,7 @@ func player_damaged() -> void:
 	camera_shake_time = 0.22
 	camera_shake_strength = 13.0
 	audio_event("damage")
+	threat_director.call("note_player_damaged")
 
 
 func is_playing() -> bool:
@@ -188,7 +182,9 @@ func player_destroyed() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if run_state != RunState.PLAYING and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_R:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F3:
+		threat_director.call("toggle_debug")
+	if (run_state == RunState.LOST or run_state == RunState.STABILIZED) and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_R:
 		get_tree().paused = false
 		get_tree().reload_current_scene()
 
@@ -204,11 +200,11 @@ func spawn_echo_shard(origin: Vector2) -> void:
 
 
 func harvester_destroyed() -> void:
-	harvester_spawn_cooldown = 7.0
+	threat_director.call("note_threat_defeated", "harvester")
 
 
 func sentry_destroyed() -> void:
-	sentry_spawn_cooldown = 8.0
+	threat_director.call("note_threat_defeated", "sentry")
 
 
 func collect_echo_shard(shard: Node2D) -> void:
@@ -258,23 +254,18 @@ func _update_escape_state(delta: float) -> void:
 		_fail_escape()
 
 
-func _update_null_pocket(delta: float) -> void:
-	if run_state != RunState.PLAYING:
-		return
-	null_pocket_cooldown = maxf(0.0, null_pocket_cooldown - delta)
-	if null_pocket != null and is_instance_valid(null_pocket):
-		return
-	null_pocket_spawn_timer = maxf(0.0, null_pocket_spawn_timer - delta)
-	if null_pocket_spawn_timer > 0.0 or null_pocket_cooldown > 0.0:
-		return
-	_spawn_null_pocket()
+func request_directed_null_pocket() -> bool:
+	if run_state != RunState.PLAYING or (null_pocket != null and is_instance_valid(null_pocket)):
+		return false
+	return _spawn_null_pocket()
 
 
-func _spawn_null_pocket() -> void:
+func _spawn_null_pocket() -> bool:
 	var player := get_tree().get_first_node_in_group("signal_player") as Node2D
 	if player == null:
-		return
-	var pocket_position := Vector2(220.0, 170.0)
+		return false
+	var pocket_position := Vector2.ZERO
+	var found_position := false
 	for attempt in 18:
 		var candidate := Vector2(randf_range(176.0, 1104.0), randf_range(142.0, 578.0))
 		if candidate.distance_to(VIEWPORT_SIZE * 0.5) < 175.0 or candidate.distance_to(player.global_position) < 280.0:
@@ -293,19 +284,22 @@ func _spawn_null_pocket() -> void:
 					break
 		if not blocked:
 			pocket_position = candidate
+			found_position = true
 			break
+	if not found_position:
+		return false
 	null_pocket = Node2D.new()
 	null_pocket.set_script(NULL_POCKET_SCRIPT)
 	null_pocket.position = pocket_position
 	add_child(null_pocket)
 	audio_event("pocket_spawn")
+	return true
 
 
 func null_pocket_collapsed(pocket: Node2D) -> void:
 	if pocket == null_pocket:
 		null_pocket = null
-		null_pocket_cooldown = 10.0
-		null_pocket_spawn_timer = 10.0
+		threat_director.call("note_null_pocket_resolved")
 
 
 func _spawn_null_gate() -> void:
@@ -381,57 +375,68 @@ func _update_echo_counter() -> void:
 	$Interface/EchoCounter.text = "ECHOES %d/%d" % [echoes_collected, ECHO_TARGET]
 
 
-func _update_threat_spawner(delta: float) -> void:
-	if get_tree().get_nodes_in_group("echo_wraith").size() >= MAX_WRAITHS:
-		return
-	spawn_timer -= delta
-	if spawn_timer > 0.0:
-		return
-	_spawn_threat_at_edge()
-	var run_pressure := minf(elapsed_time / 90.0, 1.0)
-	var interval := 0.0
-	match get_exposure_band():
-		0: interval = 5.4 - run_pressure * 0.6
-		1: interval = 3.35 - run_pressure * 0.45
-		_: interval = 1.65 - run_pressure * 0.25
-	interval -= get_progress_ratio() * 1.05
-	if is_machine_panic():
-		interval -= 0.55
-	if is_escape():
-		interval *= 0.76
-	spawn_timer = maxf(0.95, interval)
-
-
-func _spawn_threat_at_edge() -> void:
-	var player := get_tree().get_first_node_in_group("signal_player") as Node2D
-	var spawn_position := Vector2(80.0, 80.0)
-	for attempt in 8:
-		var edge := randi_range(0, 3)
-		match edge:
-			0: spawn_position = Vector2(randf_range(82.0, 1198.0), 70.0)
-			1: spawn_position = Vector2(1210.0, randf_range(70.0, 620.0))
-			2: spawn_position = Vector2(randf_range(82.0, 1198.0), 630.0)
-			_: spawn_position = Vector2(70.0, randf_range(70.0, 620.0))
-		if player == null or spawn_position.distance_to(player.global_position) >= 290.0:
-			break
-	var can_spawn_harvester := (echoes_collected >= 2 or elapsed_time >= 24.0) and harvester_spawn_cooldown <= 0.0 and get_tree().get_nodes_in_group("echo_harvester").is_empty()
-	var can_spawn_sentry := (echoes_collected >= 3 or elapsed_time >= 30.0) and sentry_spawn_cooldown <= 0.0 and get_tree().get_nodes_in_group("null_sentry").is_empty() and (not is_escape() or escape_timer > 3.0)
-	var harvester_chance := 0.25 if is_machine_panic() else 0.18
-	var sentry_chance := 0.18 if is_escape() else 0.15
-	var harvester_roll_limit := sentry_chance + harvester_chance if can_spawn_sentry else harvester_chance
+func spawn_directed_threat(kind: String) -> bool:
+	if not is_playing() or get_tree().get_nodes_in_group("echo_wraith").size() >= MAX_WRAITHS:
+		return false
+	var spawn_position := _find_safe_threat_spawn_position()
+	if spawn_position == Vector2.ZERO:
+		return false
 	var threat := Node2D.new()
-	var special_roll := randf()
-	if can_spawn_sentry and special_roll <= sentry_chance:
-		threat.set_script(SENTRY_SCRIPT)
-	elif can_spawn_harvester and special_roll <= harvester_roll_limit:
-		threat.set_script(HARVESTER_SCRIPT)
-	else:
-		threat.set_script(WRAITH_SCRIPT)
+	match kind:
+		"harvester": threat.set_script(HARVESTER_SCRIPT)
+		"sentry": threat.set_script(SENTRY_SCRIPT)
+		_: threat.set_script(WRAITH_SCRIPT)
 	threat.position = spawn_position
 	add_child(threat)
 	threat.call("begin_emergence")
 	if threat.has_method("wake_for_exposure") and (exposure >= 0.34 or is_machine_panic()):
 		threat.call("wake_for_exposure", maxf(exposure, 0.5))
+	return true
+
+
+func _find_safe_threat_spawn_position() -> Vector2:
+	var player := get_tree().get_first_node_in_group("signal_player") as Node2D
+	for attempt in 14:
+		var spawn_position := Vector2.ZERO
+		match randi_range(0, 3):
+			0: spawn_position = Vector2(randf_range(92.0, 1188.0), 70.0)
+			1: spawn_position = Vector2(1210.0, randf_range(82.0, 610.0))
+			2: spawn_position = Vector2(randf_range(92.0, 1188.0), 630.0)
+			_: spawn_position = Vector2(70.0, randf_range(82.0, 610.0))
+		if player and spawn_position.distance_to(player.global_position) < 290.0:
+			continue
+		if null_pocket != null and is_instance_valid(null_pocket) and bool(null_pocket.call("contains", spawn_position)):
+			continue
+		if null_gate != null and is_instance_valid(null_gate) and spawn_position.distance_to(null_gate.global_position) < 112.0:
+			continue
+		var occupied := false
+		for enemy in get_tree().get_nodes_in_group("echo_wraith"):
+			if enemy is Node2D and spawn_position.distance_to(enemy.global_position) < 62.0:
+				occupied = true
+				break
+		if not occupied:
+			for scar in get_tree().get_nodes_in_group("resonance_scar"):
+				if scar is Node2D and spawn_position.distance_to(scar.global_position) < 132.0:
+					occupied = true
+					break
+		if not occupied:
+			return spawn_position
+	return Vector2.ZERO
+
+
+func get_visual_overload() -> float:
+	var all_enemies := get_tree().get_nodes_in_group("echo_wraith").size()
+	var harvesters := get_tree().get_nodes_in_group("echo_harvester").size()
+	var sentries := get_tree().get_nodes_in_group("null_sentry").size()
+	var basics := maxi(0, all_enemies - harvesters - sentries)
+	var scars := get_tree().get_nodes_in_group("resonance_scar").size()
+	var shards := get_tree().get_nodes_in_group("echo_shard").size()
+	var load := float(basics) + float(harvesters) * 1.45 + float(sentries) * 1.7 + float(scars) * 0.62 + minf(1.0, float(shards) * 0.12)
+	if trace_lock:
+		load += 0.8
+	if null_pocket != null and is_instance_valid(null_pocket):
+		load += 0.35
+	return load
 
 
 func get_exposure_band() -> int:

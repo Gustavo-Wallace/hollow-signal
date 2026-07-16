@@ -201,6 +201,7 @@ func _begin_death() -> void:
 	velocity = Vector2.ZERO
 	remove_from_group("echo_wraith")
 	get_parent().audio_event("wraith_death")
+	get_parent().get_node("ThreatDirector").call("note_threat_defeated", "basic")
 	get_parent().spawn_echo_shard(global_position)
 
 

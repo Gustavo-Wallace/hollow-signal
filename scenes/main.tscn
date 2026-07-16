@@ -5,12 +5,16 @@
 [ext_resource type="Script" uid="uid://c2fcurf0sixrp" path="res://scripts/echo_wraith.gd" id="3_wraith"]
 [ext_resource type="Script" uid="uid://d4c3m53fny5ho" path="res://scripts/hud.gd" id="4_hud"]
 [ext_resource type="Script" uid="uid://i4304c4os4db" path="res://scripts/procedural_audio.gd" id="5_audio"]
+[ext_resource type="Script" uid="uid://bxxoy72pg1yhr" path="res://scripts/threat_director.gd" id="6_director"]
 
 [node name="HollowSignal" type="Node2D" unique_id=1353385711]
 script = ExtResource("1_arena")
 
 [node name="AudioDirector" type="Node" parent="." unique_id=1672322057]
 script = ExtResource("5_audio")
+
+[node name="ThreatDirector" type="Node" parent="." unique_id=669218980]
+script = ExtResource("6_director")
 
 [node name="ArenaCamera" type="Camera2D" parent="." unique_id=1833794020]
 position = Vector2(640, 360)
@@ -37,14 +41,6 @@ script = ExtResource("3_wraith")
 
 [node name="EchoWraithC" type="Node2D" parent="." unique_id=2019259549]
 position = Vector2(772, 492)
-script = ExtResource("3_wraith")
-
-[node name="EchoWraithD" type="Node2D" parent="." unique_id=1927646632]
-position = Vector2(465, 458)
-script = ExtResource("3_wraith")
-
-[node name="EchoWraithE" type="Node2D" parent="." unique_id=1640493851]
-position = Vector2(326, 188)
 script = ExtResource("3_wraith")
 
 [node name="Interface" type="CanvasLayer" parent="." unique_id=1408991666]
@@ -101,6 +97,15 @@ offset_bottom = 108.0
 theme_override_colors/font_color = Color(0.46, 0.82, 0.95, 0.74)
 theme_override_font_sizes/font_size = 13
 horizontal_alignment = 1
+
+[node name="DirectorDebug" type="Label" parent="Interface" unique_id=1792531972]
+visible = false
+offset_left = 48.0
+offset_top = 112.0
+offset_right = 370.0
+offset_bottom = 180.0
+theme_override_colors/font_color = Color(0.42, 0.8, 0.92, 0.66)
+theme_override_font_sizes/font_size = 12
 
 [node name="GameOver" type="Control" parent="Interface" unique_id=122623286]
 visible = false
