@@ -63,7 +63,7 @@ func _collapse() -> void:
 	get_parent().audio_event("scar_collapse")
 	var player := get_tree().get_first_node_in_group("signal_player") as Node2D
 	if player and global_position.distance_to(player.global_position) <= radius:
-		player.call("take_damage", global_position)
+		player.call("take_damage", global_position, "resonance_scar")
 
 
 func _draw() -> void:

@@ -16,6 +16,7 @@ var collapse_time := 0.0
 var phase := 0.0
 var player_was_inside := false
 var instability_announced := false
+var use_recorded := false
 
 
 func _ready() -> void:
@@ -41,6 +42,9 @@ func _process(delta: float) -> void:
 	var player := get_tree().get_first_node_in_group("signal_player") as Node2D
 	var inside := player != null and contains(player.global_position)
 	if inside:
+		if not use_recorded:
+			use_recorded = true
+			get_parent().null_pocket_used()
 		player_silence_time += delta
 		remaining_capacity = maxf(0.0, remaining_capacity - delta)
 		if not instability_announced and remaining_capacity <= SILENCE_CAPACITY * 0.2:

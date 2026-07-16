@@ -32,6 +32,7 @@ var null_pocket: Node2D
 var status_message_time := 0.0
 @onready var arena_camera: Camera2D = $ArenaCamera
 @onready var threat_director: Node = $ThreatDirector
+@onready var run_stats: Node = $RunStats
 
 
 func _ready() -> void:
@@ -46,6 +47,7 @@ func _process(delta: float) -> void:
 	_update_exposure()
 	if is_playing():
 		elapsed_time += delta
+		run_stats.call("tick", delta, exposure)
 		_update_trace_lock(delta)
 		_update_escape_state(delta)
 		threat_director.call("tick", delta)
@@ -63,6 +65,7 @@ func emit_pulse(origin: Vector2, charge_ratio: float) -> void:
 	pulse.position = origin
 	add_child(pulse)
 	pulse.call("configure", charge_ratio)
+	run_stats.call("record_signal", charge_ratio)
 	audio_event("signal", charge_ratio)
 	camera_shake_time = lerpf(0.08, 0.18, charge_ratio)
 	camera_shake_strength = lerpf(2.0, 11.0, charge_ratio)
@@ -93,10 +96,11 @@ func _create_resonance_scar(origin: Vector2, charge_ratio: float) -> void:
 	audio_event("scar_imprint")
 
 
-func player_damaged() -> void:
+func player_damaged(source_type: String = "enemy_contact") -> void:
 	camera_shake_time = 0.22
 	camera_shake_strength = 13.0
 	audio_event("damage")
+	run_stats.call("record_damage", source_type)
 	threat_director.call("note_player_damaged")
 
 
@@ -130,6 +134,7 @@ func activate_trace_lock(origin: Vector2) -> void:
 	if not is_playing() or trace_lock:
 		return
 	trace_lock = true
+	run_stats.call("record_trace_lock")
 	trace_position = origin
 	trace_dash_timer = 0.38
 	$Interface/TraceLock.visible = true
@@ -172,6 +177,7 @@ func player_destroyed() -> void:
 	if not is_playing():
 		return
 	run_state = RunState.LOST
+	run_stats.call("finish", "lost", "health_depleted", 0.0)
 	audio_event("death")
 	clear_trace_lock()
 	$Interface/Containment.visible = false
@@ -200,17 +206,36 @@ func spawn_echo_shard(origin: Vector2) -> void:
 
 
 func harvester_destroyed() -> void:
+	run_stats.call("record_enemy_destroyed", "harvester")
 	threat_director.call("note_threat_defeated", "harvester")
 
 
 func sentry_destroyed() -> void:
+	run_stats.call("record_enemy_destroyed", "sentry")
 	threat_director.call("note_threat_defeated", "sentry")
+
+
+func basic_enemy_destroyed() -> void:
+	run_stats.call("record_enemy_destroyed", "basic")
+
+
+func shard_intercepted() -> void:
+	run_stats.call("record_shard_intercepted")
+
+
+func shard_expired() -> void:
+	run_stats.call("record_shard_expired")
+
+
+func null_pocket_used() -> void:
+	run_stats.call("record_null_pocket_used")
 
 
 func collect_echo_shard(shard: Node2D) -> void:
 	if run_state != RunState.PLAYING:
 		return
 	echoes_collected = mini(ECHO_TARGET, echoes_collected + 1)
+	run_stats.call("record_echoes", echoes_collected)
 	audio_event("shard_collect", float(echoes_collected))
 	_update_echo_counter()
 	shard.call("begin_collection")
@@ -222,6 +247,7 @@ func _begin_escape() -> void:
 	if run_state != RunState.PLAYING:
 		return
 	run_state = RunState.ESCAPE
+	run_stats.call("begin_escape")
 	audio_event("escape")
 	escape_intro_time = 0.8
 	escape_timer = 14.0
@@ -320,6 +346,8 @@ func _spawn_null_gate() -> void:
 	null_gate.set_script(NULL_GATE_SCRIPT)
 	null_gate.position = gate_position
 	add_child(null_gate)
+	if player:
+		run_stats.call("set_null_gate_distance", player.global_position.distance_to(gate_position))
 	audio_event("gate_open")
 
 
@@ -327,6 +355,7 @@ func enter_null_gate() -> void:
 	if run_state != RunState.ESCAPE:
 		return
 	run_state = RunState.STABILIZED
+	run_stats.call("finish", "stabilized", "reached_null_gate", escape_timer)
 	audio_event("gate_enter")
 	audio_event("victory")
 	clear_trace_lock()
@@ -347,6 +376,7 @@ func _fail_escape() -> void:
 	if run_state != RunState.ESCAPE:
 		return
 	run_state = RunState.LOST
+	run_stats.call("finish", "lost", "trace_complete", 0.0)
 	audio_event("trace_fail")
 	clear_trace_lock()
 	$Interface/Containment.visible = false

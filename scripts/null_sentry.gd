@@ -145,7 +145,7 @@ func _fire_beam(player: Node2D) -> void:
 	get_parent().audio_event("sentry_fire")
 	var closest := Geometry2D.get_closest_point_to_segment(player.global_position, global_position, beam_end)
 	if player.global_position.distance_to(closest) <= BEAM_HALF_WIDTH:
-		player.call("take_damage", global_position)
+		player.call("take_damage", global_position, "sentry_beam")
 
 
 func _get_lock_duration(player: Node2D) -> float:

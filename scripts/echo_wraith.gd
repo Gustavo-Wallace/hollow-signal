@@ -102,7 +102,8 @@ func _process_movement(delta: float) -> void:
 
 func _try_damage_player(player: Node2D) -> void:
 	if player and global_position.distance_to(player.global_position) <= 27.0:
-		player.call("take_damage", global_position)
+		var source_type := "enemy_charge" if dash_state == DashState.DASHING else "enemy_contact"
+		player.call("take_damage", global_position, source_type)
 
 
 func _process_trace_dash(delta: float) -> bool:
@@ -201,6 +202,7 @@ func _begin_death() -> void:
 	velocity = Vector2.ZERO
 	remove_from_group("echo_wraith")
 	get_parent().audio_event("wraith_death")
+	get_parent().basic_enemy_destroyed()
 	get_parent().get_node("ThreatDirector").call("note_threat_defeated", "basic")
 	get_parent().spawn_echo_shard(global_position)
 

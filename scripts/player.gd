@@ -161,14 +161,14 @@ func _update_stationary_trace(delta: float) -> void:
 		trace_value = 0.0
 
 
-func take_damage(source_position: Vector2) -> void:
+func take_damage(source_position: Vector2, source_type: String = "enemy_contact") -> void:
 	if invulnerability_time > 0.0 or destroyed or not get_parent().is_playing():
 		return
 	health -= 1
 	invulnerability_time = INVULNERABILITY_DURATION
 	damage_flash = 1.0
 	velocity += source_position.direction_to(global_position) * 260.0
-	get_parent().player_damaged()
+	get_parent().player_damaged(source_type)
 	if health <= 0:
 		destroyed = true
 		get_parent().player_destroyed()

@@ -35,6 +35,7 @@ func _process(delta: float) -> void:
 		return
 	lifetime += delta
 	if lifetime >= LIFETIME:
+		get_parent().shard_expired()
 		queue_free()
 		return
 	phase += delta * 2.2

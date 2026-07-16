@@ -63,7 +63,7 @@ func _process(delta: float) -> void:
 
 
 func trigger(kind: String, value: float = 0.0) -> void:
-	if run_finished and kind not in ["restart"]:
+	if run_finished and kind not in ["restart", "summary"]:
 		return
 	match kind:
 		"signal":
@@ -109,6 +109,7 @@ func trigger(kind: String, value: float = 0.0) -> void:
 		"pocket_exit": _play("pocket_exit", 1.0, -19.0)
 		"pocket_unstable": _play("pocket_unstable", 1.0, -20.0)
 		"pocket_collapse": _play_limited("pocket_collapse", 0.15, 1.0, -11.0)
+		"summary": _play("summary", 1.0, -20.0)
 		"restart": run_finished = false
 
 
@@ -153,6 +154,7 @@ func _build_streams() -> void:
 	streams["pocket_exit"] = _make_tone(0.2, 104.0, 1.48, 0.0, false)
 	streams["pocket_unstable"] = _make_tone(0.18, 154.0, 0.58, 0.04, true)
 	streams["pocket_collapse"] = _make_tone(0.34, 96.0, 0.34, 0.1, true)
+	streams["summary"] = _make_tone(0.22, 184.0, 1.34, 0.0, false)
 
 
 func _make_tone(duration: float, frequency: float, overtone_ratio: float, noise_amount: float, descends: bool) -> AudioStreamWAV:

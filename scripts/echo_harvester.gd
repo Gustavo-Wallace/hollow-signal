@@ -119,6 +119,7 @@ func _process_channel(delta: float) -> void:
 	var pull_strength := clampf(channel_time / channel_duration, 0.0, 1.0)
 	target_shard.global_position = target_shard.global_position.lerp(global_position, delta * (0.5 + pull_strength * 1.5))
 	if channel_time >= channel_duration:
+		get_parent().shard_intercepted()
 		target_shard.queue_free()
 		target_shard = null
 		channeling = false
