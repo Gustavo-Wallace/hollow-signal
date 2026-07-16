@@ -102,10 +102,10 @@ func _update_signal_charge(delta: float) -> void:
 
 func _emit_charged_signal() -> void:
 	var signal_strength := maxf(0.08, charge_ratio)
+	exposure = minf(1.0, exposure + lerpf(0.1, 0.48, signal_strength))
 	get_parent().emit_pulse(global_position, signal_strength)
 	current_cooldown_length = lerpf(QUICK_COOLDOWN, BREAK_COOLDOWN, signal_strength)
 	pulse_cooldown = current_cooldown_length
-	exposure = minf(1.0, exposure + lerpf(0.1, 0.48, signal_strength))
 	trace_value += lerpf(0.28, 1.25, signal_strength)
 	_cancel_charge()
 

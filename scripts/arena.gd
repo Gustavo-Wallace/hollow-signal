@@ -4,6 +4,7 @@ const VIEWPORT_SIZE := Vector2(1280.0, 720.0)
 const PULSE_SCRIPT := preload("res://scripts/pulse.gd")
 const WRAITH_SCRIPT := preload("res://scripts/echo_wraith.gd")
 const SHARD_SCRIPT := preload("res://scripts/echo_shard.gd")
+const SCAR_SCRIPT := preload("res://scripts/resonance_scar.gd")
 const ECHO_TARGET := 8
 const MAX_WRAITHS := 8
 
@@ -53,6 +54,24 @@ func emit_pulse(origin: Vector2, charge_ratio: float) -> void:
 	pulse.call("configure", charge_ratio)
 	camera_shake_time = lerpf(0.08, 0.18, charge_ratio)
 	camera_shake_strength = lerpf(2.0, 11.0, charge_ratio)
+	_create_resonance_scar(origin, charge_ratio)
+
+
+func _create_resonance_scar(origin: Vector2, charge_ratio: float) -> void:
+	if charge_ratio < 0.35:
+		return
+	var active_scars := get_tree().get_nodes_in_group("resonance_scar")
+	if active_scars.size() >= 3:
+		var oldest_scar := active_scars[0]
+		if oldest_scar.has_method("expire"):
+			oldest_scar.call("expire")
+	var player := get_tree().get_first_node_in_group("signal_player")
+	var exposure_at_signal := float(player.call("get_exposure")) if player else exposure
+	var scar := Node2D.new()
+	scar.set_script(SCAR_SCRIPT)
+	scar.position = origin
+	add_child(scar)
+	scar.call("configure", charge_ratio, exposure_at_signal, trace_lock)
 
 
 func player_damaged() -> void:
