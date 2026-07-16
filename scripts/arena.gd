@@ -3,6 +3,7 @@ extends Node2D
 const VIEWPORT_SIZE := Vector2(1280.0, 720.0)
 const PULSE_SCRIPT := preload("res://scripts/pulse.gd")
 const WRAITH_SCRIPT := preload("res://scripts/echo_wraith.gd")
+const HARVESTER_SCRIPT := preload("res://scripts/echo_harvester.gd")
 const SHARD_SCRIPT := preload("res://scripts/echo_shard.gd")
 const SCAR_SCRIPT := preload("res://scripts/resonance_scar.gd")
 const ECHO_TARGET := 8
@@ -22,6 +23,7 @@ var elapsed_time := 0.0
 var trace_lock := false
 var trace_position := Vector2.ZERO
 var trace_dash_timer := 0.0
+var harvester_spawn_cooldown := 0.0
 @onready var arena_camera: Camera2D = $ArenaCamera
 
 
@@ -37,6 +39,7 @@ func _process(delta: float) -> void:
 	_update_exposure()
 	if run_state == RunState.PLAYING:
 		elapsed_time += delta
+		harvester_spawn_cooldown = maxf(0.0, harvester_spawn_cooldown - delta)
 		_update_threat_spawner(delta)
 		_update_trace_lock(delta)
 	_update_camera_shake(delta)
@@ -159,6 +162,10 @@ func spawn_echo_shard(origin: Vector2) -> void:
 	add_child(shard)
 
 
+func harvester_destroyed() -> void:
+	harvester_spawn_cooldown = 7.0
+
+
 func collect_echo_shard(shard: Node2D) -> void:
 	if run_state != RunState.PLAYING:
 		return
@@ -188,7 +195,7 @@ func _update_threat_spawner(delta: float) -> void:
 	spawn_timer -= delta
 	if spawn_timer > 0.0:
 		return
-	_spawn_wraith_at_edge()
+	_spawn_threat_at_edge()
 	var run_pressure := minf(elapsed_time / 90.0, 1.0)
 	var interval := 0.0
 	match get_exposure_band():
@@ -201,7 +208,7 @@ func _update_threat_spawner(delta: float) -> void:
 	spawn_timer = maxf(0.95, interval)
 
 
-func _spawn_wraith_at_edge() -> void:
+func _spawn_threat_at_edge() -> void:
 	var player := get_tree().get_first_node_in_group("signal_player") as Node2D
 	var spawn_position := Vector2(80.0, 80.0)
 	for attempt in 8:
@@ -213,13 +220,18 @@ func _spawn_wraith_at_edge() -> void:
 			_: spawn_position = Vector2(70.0, randf_range(70.0, 620.0))
 		if player == null or spawn_position.distance_to(player.global_position) >= 290.0:
 			break
-	var wraith := Node2D.new()
-	wraith.set_script(WRAITH_SCRIPT)
-	wraith.position = spawn_position
-	add_child(wraith)
-	wraith.call("begin_emergence")
-	if exposure >= 0.34 or is_machine_panic():
-		wraith.call("wake_for_exposure", maxf(exposure, 0.5))
+	var can_spawn_harvester := (echoes_collected >= 2 or elapsed_time >= 24.0) and harvester_spawn_cooldown <= 0.0 and get_tree().get_nodes_in_group("echo_harvester").is_empty()
+	var harvester_chance := 0.25 if is_machine_panic() else 0.18
+	var threat := Node2D.new()
+	if can_spawn_harvester and randf() <= harvester_chance:
+		threat.set_script(HARVESTER_SCRIPT)
+	else:
+		threat.set_script(WRAITH_SCRIPT)
+	threat.position = spawn_position
+	add_child(threat)
+	threat.call("begin_emergence")
+	if threat.has_method("wake_for_exposure") and (exposure >= 0.34 or is_machine_panic()):
+		threat.call("wake_for_exposure", maxf(exposure, 0.5))
 
 
 func get_exposure_band() -> int:
