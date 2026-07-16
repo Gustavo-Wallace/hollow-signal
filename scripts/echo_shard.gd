@@ -9,6 +9,8 @@ var phase := 0.0
 var collected := false
 var collection_time := 0.0
 var lifetime := 0.0
+var expiring := false
+var expire_time := 0.0
 
 
 func _ready() -> void:
@@ -19,6 +21,12 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if expiring:
+		expire_time += delta
+		queue_redraw()
+		if expire_time >= 0.45:
+			queue_free()
+		return
 	if collected:
 		collection_time += delta
 		queue_redraw()
@@ -44,6 +52,14 @@ func begin_collection() -> void:
 	queue_redraw()
 
 
+func expire() -> void:
+	if collected or expiring:
+		return
+	expiring = true
+	remove_from_group("echo_shard")
+	queue_redraw()
+
+
 func _draw() -> void:
 	if collected:
 		_draw_collection_echo()
@@ -52,7 +68,8 @@ func _draw() -> void:
 	var pulse := 0.7 + sin(phase * 1.7) * 0.3
 	var instability := clampf((lifetime - (LIFETIME - INSTABILITY_DURATION)) / INSTABILITY_DURATION, 0.0, 1.0)
 	var flicker := 1.0 if instability <= 0.0 else 0.38 + absf(sin(Time.get_ticks_msec() * 0.018)) * 0.62
-	var alpha := (1.0 - instability * 0.5) * flicker
+	var dissolve := 1.0 - clampf(expire_time / 0.45, 0.0, 1.0)
+	var alpha := (1.0 - instability * 0.5) * flicker * dissolve
 	draw_circle(Vector2(0, bob), 13.0 + pulse * 3.0, Color(0.12, 0.72, 1.0, 0.065 * alpha))
 	draw_circle(Vector2(0, bob), 6.0 + pulse * 1.2, Color(0.25, 0.85, 1.0, 0.22 * alpha))
 	var diamond := PackedVector2Array([Vector2(0, bob - 5), Vector2(4, bob), Vector2(0, bob + 5), Vector2(-4, bob)])

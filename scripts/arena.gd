@@ -6,10 +6,11 @@ const WRAITH_SCRIPT := preload("res://scripts/echo_wraith.gd")
 const HARVESTER_SCRIPT := preload("res://scripts/echo_harvester.gd")
 const SHARD_SCRIPT := preload("res://scripts/echo_shard.gd")
 const SCAR_SCRIPT := preload("res://scripts/resonance_scar.gd")
+const NULL_GATE_SCRIPT := preload("res://scripts/null_gate.gd")
 const ECHO_TARGET := 8
 const MAX_WRAITHS := 8
 
-enum RunState { PLAYING, LOST, STABILIZED }
+enum RunState { PLAYING, ESCAPE, LOST, STABILIZED }
 
 var stars: Array[Dictionary] = []
 var drift := 0.0
@@ -24,6 +25,10 @@ var trace_lock := false
 var trace_position := Vector2.ZERO
 var trace_dash_timer := 0.0
 var harvester_spawn_cooldown := 0.0
+var escape_timer := 14.0
+var escape_intro_time := 0.0
+var null_gate: Node2D
+var status_message_time := 0.0
 @onready var arena_camera: Camera2D = $ArenaCamera
 
 
@@ -37,13 +42,15 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	drift += delta
 	_update_exposure()
-	if run_state == RunState.PLAYING:
+	if is_playing():
 		elapsed_time += delta
 		harvester_spawn_cooldown = maxf(0.0, harvester_spawn_cooldown - delta)
 		_update_threat_spawner(delta)
 		_update_trace_lock(delta)
+		_update_escape_state(delta)
 	_update_camera_shake(delta)
 	_update_final_echo_pulse()
+	_update_status_message(delta)
 	queue_redraw()
 
 
@@ -83,7 +90,11 @@ func player_damaged() -> void:
 
 
 func is_playing() -> bool:
-	return run_state == RunState.PLAYING
+	return run_state == RunState.PLAYING or run_state == RunState.ESCAPE
+
+
+func is_escape() -> bool:
+	return run_state == RunState.ESCAPE
 
 
 func get_progress_ratio() -> float:
@@ -91,7 +102,7 @@ func get_progress_ratio() -> float:
 
 
 func is_machine_panic() -> bool:
-	return is_playing() and ECHO_TARGET - echoes_collected <= 2
+	return run_state == RunState.PLAYING and ECHO_TARGET - echoes_collected <= 2
 
 
 func activate_trace_lock(origin: Vector2) -> void:
@@ -137,10 +148,11 @@ func _request_trace_dashes() -> void:
 
 
 func player_destroyed() -> void:
-	if run_state != RunState.PLAYING:
+	if not is_playing():
 		return
 	run_state = RunState.LOST
 	clear_trace_lock()
+	$Interface/Containment.visible = false
 	$Interface/GameOver/Title.text = "SIGNAL LOST"
 	$Interface/GameOver/RestartHint.text = "Press R to restart"
 	$Interface/GameOver.visible = true
@@ -169,20 +181,109 @@ func harvester_destroyed() -> void:
 func collect_echo_shard(shard: Node2D) -> void:
 	if run_state != RunState.PLAYING:
 		return
-	echoes_collected += 1
+	echoes_collected = mini(ECHO_TARGET, echoes_collected + 1)
 	_update_echo_counter()
 	shard.call("begin_collection")
 	if echoes_collected >= ECHO_TARGET:
-		_stabilize_core()
+		_begin_escape()
 
 
-func _stabilize_core() -> void:
+func _begin_escape() -> void:
+	if run_state != RunState.PLAYING:
+		return
+	run_state = RunState.ESCAPE
+	escape_intro_time = 0.8
+	escape_timer = 14.0
+	clear_trace_lock()
+	_show_status_message("CORE PRIMED", 0.8)
+	for shard in get_tree().get_nodes_in_group("echo_shard"):
+		if shard.has_method("expire"):
+			shard.call("expire")
+	for harvester in get_tree().get_nodes_in_group("echo_harvester"):
+		if harvester.has_method("begin_escape_mode"):
+			harvester.call("begin_escape_mode")
+
+
+func _update_escape_state(delta: float) -> void:
+	if run_state != RunState.ESCAPE:
+		$Interface/Containment.visible = false
+		return
+	if escape_intro_time > 0.0:
+		escape_intro_time = maxf(0.0, escape_intro_time - delta)
+		if escape_intro_time <= 0.0:
+			_spawn_null_gate()
+			_show_status_message("REACH THE NULL GATE", 1.4)
+		return
+	escape_timer = maxf(0.0, escape_timer - delta)
+	$Interface/Containment.visible = true
+	$Interface/Containment.text = "CONTAINMENT %.1f" % escape_timer
+	if escape_timer <= 0.0:
+		_fail_escape()
+
+
+func _spawn_null_gate() -> void:
+	var player := get_tree().get_first_node_in_group("signal_player") as Node2D
+	var candidates := [Vector2(112.0, 112.0), Vector2(1168.0, 112.0), Vector2(112.0, 590.0), Vector2(1168.0, 590.0), Vector2(112.0, 360.0), Vector2(1168.0, 360.0), Vector2(640.0, 112.0), Vector2(640.0, 590.0)]
+	candidates.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.distance_to(player.global_position) > b.distance_to(player.global_position))
+	var gate_position: Vector2 = candidates[0]
+	for candidate in candidates:
+		var safe := true
+		for enemy in get_tree().get_nodes_in_group("echo_wraith"):
+			if enemy is Node2D and candidate.distance_to(enemy.global_position) < 95.0:
+				safe = false
+				break
+		if safe:
+			gate_position = candidate
+			break
+	null_gate = Node2D.new()
+	null_gate.set_script(NULL_GATE_SCRIPT)
+	null_gate.position = gate_position
+	add_child(null_gate)
+
+
+func enter_null_gate() -> void:
+	if run_state != RunState.ESCAPE:
+		return
 	run_state = RunState.STABILIZED
 	clear_trace_lock()
-	$Interface/GameOver/Title.text = "CORE STABILIZED"
+	$Interface/Containment.visible = false
+	for scar in get_tree().get_nodes_in_group("resonance_scar"):
+		scar.queue_free()
+	for harvester in get_tree().get_nodes_in_group("echo_harvester"):
+		if harvester.has_method("cancel_channel"):
+			harvester.call("cancel_channel")
+	$Player.visible = false
+	$Interface/GameOver/Title.text = "SIGNAL ESCAPED"
 	$Interface/GameOver/RestartHint.text = "Press R to run again"
 	$Interface/GameOver.visible = true
 	get_tree().paused = true
+
+
+func _fail_escape() -> void:
+	if run_state != RunState.ESCAPE:
+		return
+	run_state = RunState.LOST
+	clear_trace_lock()
+	$Interface/Containment.visible = false
+	$Interface/GameOver/Title.text = "TRACE COMPLETE"
+	$Interface/GameOver/RestartHint.text = "Press R to restart"
+	$Interface/GameOver.visible = true
+	get_tree().paused = true
+
+
+func _show_status_message(message: String, duration: float) -> void:
+	$Interface/StatusMessage.text = message
+	$Interface/StatusMessage.visible = true
+	status_message_time = duration
+
+
+func _update_status_message(delta: float) -> void:
+	if status_message_time <= 0.0:
+		return
+	status_message_time = maxf(0.0, status_message_time - delta)
+	$Interface/StatusMessage.modulate.a = minf(1.0, status_message_time * 2.4)
+	if status_message_time <= 0.0:
+		$Interface/StatusMessage.visible = false
 
 
 func _update_echo_counter() -> void:
@@ -205,6 +306,8 @@ func _update_threat_spawner(delta: float) -> void:
 	interval -= get_progress_ratio() * 1.05
 	if is_machine_panic():
 		interval -= 0.55
+	if is_escape():
+		interval *= 0.76
 	spawn_timer = maxf(0.95, interval)
 
 

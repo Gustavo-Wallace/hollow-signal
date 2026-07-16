@@ -80,6 +80,24 @@ theme_override_font_sizes/font_size = 13
 text = "TRACE LOCK"
 horizontal_alignment = 1
 
+[node name="StatusMessage" type="Label" parent="Interface" unique_id=1811429142]
+visible = false
+offset_top = 148.0
+offset_right = 1280.0
+offset_bottom = 176.0
+theme_override_colors/font_color = Color(0.56, 0.93, 1, 0.88)
+theme_override_font_sizes/font_size = 17
+horizontal_alignment = 1
+
+[node name="Containment" type="Label" parent="Interface" unique_id=1175379223]
+visible = false
+offset_top = 86.0
+offset_right = 1280.0
+offset_bottom = 108.0
+theme_override_colors/font_color = Color(0.46, 0.82, 0.95, 0.74)
+theme_override_font_sizes/font_size = 13
+horizontal_alignment = 1
+
 [node name="GameOver" type="Control" parent="Interface" unique_id=122623286]
 visible = false
 layout_mode = 3

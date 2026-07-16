@@ -55,6 +55,8 @@ func _process(delta: float) -> void:
 	if resistance_hold <= 0.0:
 		pulse_resistance = move_toward(pulse_resistance, 0.0, delta * 0.7)
 	emergence = move_toward(emergence, 1.0, delta * 2.1)
+	if get_parent().is_escape() and channeling:
+		_cancel_channel(false)
 	if channeling:
 		_process_channel(delta)
 	else:
@@ -70,6 +72,9 @@ func _process_movement(delta: float) -> void:
 	var player_exposure := float(player.call("get_exposure")) if player else 0.0
 	if stagger_time > 0.0:
 		velocity = velocity.move_toward(Vector2.ZERO, delta * 440.0 * stagger_brake)
+	elif get_parent().is_escape() and player:
+		var escape_direction := global_position.direction_to(player.global_position)
+		velocity = velocity.move_toward(escape_direction * CHARGED_SPEED * (1.0 + player_exposure * 0.45), delta * ACCELERATION)
 	elif stored_echoes >= 2 and player:
 		var charged_direction := global_position.direction_to(player.global_position)
 		velocity = velocity.move_toward(charged_direction * CHARGED_SPEED * (1.0 + player_exposure * 0.35), delta * ACCELERATION)
@@ -91,7 +96,7 @@ func _process_movement(delta: float) -> void:
 		velocity = velocity.move_toward(Vector2.ZERO, delta * 130.0)
 	global_position += velocity * delta
 	global_position = global_position.clamp(ARENA_BOUNDS.position, ARENA_BOUNDS.end)
-	if stored_echoes >= 2 and player and global_position.distance_to(player.global_position) <= 28.0:
+	if (stored_echoes >= 2 or get_parent().is_escape()) and player and global_position.distance_to(player.global_position) <= 28.0:
 		player.call("take_damage", global_position)
 
 
@@ -146,6 +151,16 @@ func _cancel_channel(interrupted: bool) -> void:
 		channel_pause = CHANNEL_INTERRUPTION
 
 
+func cancel_channel() -> void:
+	_cancel_channel(false)
+
+
+func begin_escape_mode() -> void:
+	_cancel_channel(false)
+	reveal_time = maxf(reveal_time, 1.3)
+	flash_amount = 0.55
+
+
 func receive_signal_pulse(origin: Vector2, force: float, damage: int, signal_stagger_scale: float = 1.0) -> void:
 	if dying:
 		return
@@ -194,9 +209,10 @@ func _begin_death() -> void:
 	velocity = Vector2.ZERO
 	remove_from_group("echo_wraith")
 	remove_from_group("echo_harvester")
-	for index in stored_echoes:
-		var direction := Vector2.RIGHT.rotated(phase + float(index) * PI)
-		get_parent().spawn_echo_shard(global_position + direction * 19.0)
+	if not get_parent().is_escape():
+		for index in stored_echoes:
+			var direction := Vector2.RIGHT.rotated(phase + float(index) * PI)
+			get_parent().spawn_echo_shard(global_position + direction * 19.0)
 	get_parent().harvester_destroyed()
 
 

@@ -53,6 +53,8 @@ func _process(delta: float) -> void:
 	pulse_cooldown = maxf(0.0, pulse_cooldown - delta)
 	invulnerability_time = maxf(0.0, invulnerability_time - delta)
 	var progress_decay := lerpf(1.0, 0.62, get_parent().get_progress_ratio())
+	if get_parent().is_escape():
+		progress_decay = 0.2
 	exposure = maxf(0.0, exposure - EXPOSURE_DECAY * progress_decay * delta)
 	damage_flash = maxf(0.0, damage_flash - delta * 3.5)
 	_update_signal_charge(delta)
